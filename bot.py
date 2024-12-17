@@ -104,7 +104,8 @@ async def is_inhibited(history: list[str], speaker_prompt: str) -> bool:
                                     continue
                     
                     response_text = ''.join(full_response).strip()
-                    
+                    logger.info(f"Raw inhibition response: {response_text}")
+
                     # Extract result from message tag
                     import re
                     result_match = re.search(r'result="(true|false)"', response_text)
@@ -114,7 +115,7 @@ async def is_inhibited(history: list[str], speaker_prompt: str) -> bool:
                         # Return True if result="true" (meaning inhibit)
                         return result_match.group(1) == "true"
                     
-                    logger.warning("Invalid inhibition response format, defaulting to inhibited")
+                    logger.warning(f"Invalid inhibition response format, defaulting to inhibited: {response_text}")
                     return True
                 else:
                     error_text = await response.text()
