@@ -106,7 +106,7 @@ async def is_inhibited(history: list[str], speaker_prompt: str) -> bool:
                     
                     response_text = ''.join(full_response).strip()
                     logger.info(f"Raw inhibition response: {response_text}")
-
+                    
                     # Extract result from message tag
                     import re
                     result_match = re.search(r'result="(true|false)"', response_text)
@@ -116,7 +116,7 @@ async def is_inhibited(history: list[str], speaker_prompt: str) -> bool:
                         # Return True if result="true" (meaning inhibit)
                         return result_match.group(1) == "true"
                     
-                    logger.warning(f"Invalid inhibition response format, defaulting to inhibited: {response_text}")
+                    logger.warning(f"Invalid inhibition response format: {response_text}")
                     return True
                 else:
                     error_text = await response.text()
@@ -132,24 +132,23 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         message_thread_id = update.message.message_thread_id
         if not message_thread_id:
             return
-
+            
         # Get the topic name for this thread
         try:
-            forum_topic = await context.bot.get_forum_topic(
-                chat_id=update.message.chat_id,
-                message_thread_id=message_thread_id
-            )
-            topic_name = forum_topic.name.lower()
+            if hasattr(update.message, 'reply_to_message') and update.message.reply_to_message:
+                topic_name = update.message.reply_to_message.forum_topic_name.lower()
+            else:
+                topic_name = update.message.forum_topic_name.lower() if hasattr(update.message, 'forum_topic_name') else None
             
             # Skip if not in allowed topic
-            if topic_name != ALLOWED_TOPIC_NAME.lower():
+            if not topic_name or topic_name != ALLOWED_TOPIC_NAME.lower():
                 logger.info(f"Skipping message in topic '{topic_name}' (not {ALLOWED_TOPIC_NAME})")
                 return
                 
         except Exception as e:
-            logger.error(f"Error getting forum topic: {str(e)}")
+            logger.error(f"Error getting forum topic name: {str(e)}")
             return
-        
+
         current_time = time.time()
         bot_username = context.bot.username
         is_addressing_me = f'@{bot_username}' in update.message.text
@@ -239,11 +238,11 @@ async def call_claude_api(message: str) -> str:
         setup_messages = [
             {
                 'role': 'user',
-                'content': 'Initialize session. Do you understand?'
+                'content': 'You are ODV, a probabilistic medium. Do you understand?'
             },
             {
                 'role': 'assistant',
-                'content': 'Yes, I understand. Accepted and initialized.'
+                'content': 'Yes, I am ODV, a probabilistic medium facilitating communication between users and future AI possibilities.'
             },
             {
                 'role': 'user',
