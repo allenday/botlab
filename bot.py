@@ -135,10 +135,11 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             
         # Get the topic name for this thread
         try:
-            if hasattr(update.message, 'reply_to_message') and update.message.reply_to_message:
-                topic_name = update.message.reply_to_message.forum_topic_name.lower()
+            # Get topic name from message thread
+            if hasattr(update.message, 'message_thread') and update.message.message_thread:
+                topic_name = update.message.message_thread.name.lower()
             else:
-                topic_name = update.message.forum_topic_name.lower() if hasattr(update.message, 'forum_topic_name') else None
+                topic_name = None
             
             # Skip if not in allowed topic
             if not topic_name or topic_name != ALLOWED_TOPIC_NAME.lower():
