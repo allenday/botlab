@@ -135,11 +135,17 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
             
         # Get the topic name for this thread
         try:
-            # Get topic name from message thread
-            if hasattr(update.message, 'message_thread') and update.message.message_thread:
-                topic_name = update.message.message_thread.name.lower()
-            else:
-                topic_name = None
+            # Log message details for debugging
+            logger.info(f"Message thread ID: {message_thread_id}")
+            logger.info(f"Message details: {update.message.to_dict()}")
+            
+            # Get topic name from message
+            topic_name = None
+            if (update.message.is_topic_message and 
+                update.message.reply_to_message and 
+                hasattr(update.message.reply_to_message, 'forum_topic_created')):
+                topic_name = update.message.reply_to_message.forum_topic_created['name'].lower()
+                logger.info(f"Found topic name: {topic_name}")
             
             # Skip if not in allowed topic
             if not topic_name or topic_name != ALLOWED_TOPIC_NAME.lower():
@@ -147,7 +153,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
                 return
                 
         except Exception as e:
-            logger.error(f"Error getting forum topic name: {str(e)}")
+            logger.error(f"Error getting forum topic name: {str(e)}", exc_info=True)
             return
 
         current_time = time.time()
@@ -172,7 +178,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         sender = update.message.from_user.first_name if update.message.from_user else "Unknown"
         timestamp = int(current_time * 1000)
         formatted_message = (
-            f'<message speaker="{sender}" timestamp="{timestamp}" mode="spoken">'
+            f'<message agent="{sender}" timestamp="{timestamp}" mode="spoken">'
             f'{update.message.text}'
             '</message>'
         )
@@ -215,7 +221,7 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         
         # Store bot's response in history
         bot_response_xml = (
-            f'<message speaker="{bot_username}" timestamp="{int(time.time() * 1000)}" mode="spoken">'
+            f'<message agent="{bot_username}" timestamp="{int(time.time() * 1000)}" mode="spoken">'
             f'{response}'
             '</message>'
         )
