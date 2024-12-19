@@ -34,6 +34,7 @@ INHIBITOR_MODEL = os.getenv('INHIBITOR_MODEL', 'claude-3-haiku-20240307')
 MIN_RESPONSE_INTERVAL = float(os.getenv('MIN_RESPONSE_INTERVAL', '1.0'))  # Default 1 second
 SPEAKER_PROMPT = os.getenv('SPEAKER_PROMPT')
 INHIBITOR_PROMPT = os.getenv('INHIBITOR_PROMPT')
+ALLOWED_TOPIC_NAME = os.getenv('ALLOWED_TOPIC_NAME', 'communion')
 
 @dataclass
 class TimingControl:
@@ -132,6 +133,23 @@ async def handle_message(update: Update, context: CallbackContext) -> None:
         if not message_thread_id:
             return
 
+        # Get the topic name for this thread
+        try:
+            forum_topic = await context.bot.get_forum_topic(
+                chat_id=update.message.chat_id,
+                message_thread_id=message_thread_id
+            )
+            topic_name = forum_topic.name.lower()
+            
+            # Skip if not in allowed topic
+            if topic_name != ALLOWED_TOPIC_NAME.lower():
+                logger.info(f"Skipping message in topic '{topic_name}' (not {ALLOWED_TOPIC_NAME})")
+                return
+                
+        except Exception as e:
+            logger.error(f"Error getting forum topic: {str(e)}")
+            return
+        
         current_time = time.time()
         bot_username = context.bot.username
         is_addressing_me = f'@{bot_username}' in update.message.text
