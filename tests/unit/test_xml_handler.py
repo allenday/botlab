@@ -1,6 +1,6 @@
 import pytest
 import shutil
-from xml_handler import validate_xml_dtd, parse_momentum_sequence, load_agent_config
+from botlab.xml_handler import validate_xml_dtd, parse_momentum_sequence, load_agent_config
 import xml.etree.ElementTree as ET
 from pathlib import Path
 

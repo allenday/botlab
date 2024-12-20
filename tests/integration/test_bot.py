@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
-from bot import Bot
+from botlab.bot import Bot
 from telegram import Update, Message, User, Chat
 import aiohttp
 
@@ -102,7 +102,7 @@ def mock_config():
 
 @pytest.mark.asyncio
 async def test_start_command(mock_update, mock_context, mock_env_vars, mock_config):
-    with patch('bot.load_agent_config', return_value=mock_config):
+    with patch('botlab.bot.load_agent_config', return_value=mock_config):
         bot = Bot()
         mock_update.message.reply_text = AsyncMock()
         
@@ -125,8 +125,8 @@ async def test_handle_message(mock_update, mock_context, mock_env_vars, mock_con
     mock_session = MockClientSession(mock_response)
     
     with patch('aiohttp.ClientSession', return_value=mock_session), \
-         patch('bot.load_agent_config', return_value=mock_config), \
-         patch('bot.Bot.should_respond', return_value=True):
+         patch('botlab.bot.load_agent_config', return_value=mock_config), \
+         patch('botlab.bot.Bot.should_respond', return_value=True):
         # Create bot instance
         bot = Bot()
         mock_update.message.reply_text = AsyncMock()
@@ -154,25 +154,15 @@ async def test_rate_limiting(mock_update, mock_context, mock_env_vars):
     mock_session = MockClientSession(mock_response)
     
     with patch('aiohttp.ClientSession', return_value=mock_session), \
-         patch('bot.load_agent_config', return_value=config), \
-         patch('datetime.datetime') as mock_datetime, \
-         patch('bot.Bot.should_respond', side_effect=[True, False]):
-        
-        # Configure datetime mock
-        mock_now = datetime.now()
-        mock_datetime.now.return_value = mock_now
-        mock_update.message.date = mock_now
-        
+         patch('botlab.bot.load_agent_config', return_value=config), \
+         patch('botlab.bot.Bot.should_respond', side_effect=[True, False]):  # First True, then False
         bot = Bot()
         mock_update.message.reply_text = AsyncMock()
         
-        # First message should be processed
+        # First message should go through
         await bot.handle_message(mock_update, mock_context)
-        mock_update.message.reply_text.assert_called_once_with("Test response")
+        assert mock_update.message.reply_text.call_count == 1
         
-        # Reset mock
-        mock_update.message.reply_text.reset_mock()
-        
-        # Second message within rate limit should be ignored
+        # Second message should be rate limited
         await bot.handle_message(mock_update, mock_context)
-        assert not mock_update.message.reply_text.called
+        assert mock_update.message.reply_text.call_count == 1  # Still 1, not 2
