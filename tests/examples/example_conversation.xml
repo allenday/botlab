@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE conversation SYSTEM "../../config/dtd/messages.dtd">
+<conversation>
+    <message timestamp="2024-03-20T10:00:00Z">
+        <role type="user">Hello, can you help me understand how momentum works?</role>
+        <content>I'm interested in learning about the momentum concept in this system.</content>
+    </message>
+    
+    <message timestamp="2024-03-20T10:00:05Z">
+        <role type="assistant">I'll explain momentum in our conversation system.</role>
+        <content>Momentum is how we maintain context and flow in our interactions. It helps ensure responses are coherent and build upon previous exchanges.</content>
+    </message>
+    
+    <message timestamp="2024-03-20T10:00:30Z">
+        <role type="user">That makes sense. How does it handle different conversation types?</role>
+        <content>For example, technical discussions versus casual chat?</content>
+    </message>
+    
+    <message timestamp="2024-03-20T10:00:35Z">
+        <role type="assistant">Let me explain the different momentum sequences.</role>
+        <content>We use different momentum sequences based on conversation type:
+1. Technical discussions use higher precision and lower temperature
+2. Casual chat allows for more creative responses
+3. Recovery sequences help maintain focus if the conversation drifts</content>
+    </message>
+    
+    <message timestamp="2024-03-20T10:01:00Z">
+        <role type="system">Momentum shift detected: technical focus</role>
+        <content>Adjusting conversation parameters for technical discussion</content>
+    </message>
+    
+    <message timestamp="2024-03-20T10:01:05Z">
+        <role type="user">Could you show me the XML structure for momentum?</role>
+        <content>I'd like to see how it's defined in the configuration.</content>
+    </message>
+    
+    <message timestamp="2024-03-20T10:01:10Z">
+        <role type="assistant">Here's how momentum is structured in XML.</role>
+        <content>The momentum section in our configuration contains sequences:
+- Each sequence has an ID and type (e.g., initialization, recovery)
+- Sequences contain messages with roles and content
+- Messages are ordered by position
+- Temperature settings control response creativity</content>
+    </message>
+</conversation> 
