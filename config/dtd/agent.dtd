@@ -1,0 +1,48 @@
+<!-- Agent Configuration DTD v1.0 -->
+<!ELEMENT agent (metadata, communication, behavior, constraints, momentum)>
+<!ATTLIST agent
+    dtd_version CDATA #REQUIRED>
+
+<!-- Metadata Section -->
+<!ELEMENT metadata (name, type, version, timing)>
+<!ELEMENT name (#PCDATA)>
+<!ELEMENT type (#PCDATA)>
+<!ATTLIST type
+    category (assistant|observer|probabilistic) #REQUIRED>
+<!ELEMENT version (#PCDATA)>
+<!ELEMENT timing (response_interval)>
+<!ELEMENT response_interval (#PCDATA)>
+<!ATTLIST response_interval
+    unit (seconds|minutes) #REQUIRED>
+
+<!-- Communication Section -->
+<!ELEMENT communication (input, output)>
+<!ELEMENT input (format)>
+<!ELEMENT output (format)>
+<!ELEMENT format (#PCDATA)>
+
+<!-- Behavior Section -->
+<!ELEMENT behavior (core_function, methodology)>
+<!ELEMENT core_function (#PCDATA)>
+<!ELEMENT methodology (step+)>
+<!ELEMENT step (#PCDATA)>
+
+<!-- Constraints Section -->
+<!ELEMENT constraints (excluded_topics)>
+<!ELEMENT excluded_topics (topic+)>
+<!ELEMENT topic (#PCDATA)>
+
+<!-- Momentum Section -->
+<!ELEMENT momentum (sequence+)>
+<!ELEMENT sequence (message+)>
+<!ATTLIST sequence
+    id (init|recovery) #REQUIRED
+    type (initialization|recovery) #REQUIRED
+    temperature CDATA #REQUIRED>
+<!ELEMENT message (role, content)>
+<!ATTLIST message
+    position CDATA #REQUIRED>
+<!ELEMENT role (#PCDATA)>
+<!ATTLIST role
+    type (system|user|assistant) #REQUIRED>
+<!ELEMENT content (#PCDATA)> 

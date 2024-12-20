@@ -1,0 +1,50 @@
+<!-- Message Format DTD v1.0 -->
+<!ELEMENT conversation (message+)>
+
+<!-- Message Structure -->
+<!ELEMENT message (role, content)>
+<!ATTLIST message
+    timestamp CDATA #REQUIRED>
+
+<!-- Role Element -->
+<!ELEMENT role (#PCDATA)>
+<!ATTLIST role
+    type (system|user|assistant) #REQUIRED>
+
+<!-- Content Element -->
+<!ELEMENT content (#PCDATA)>
+
+<!-- Code Reference Guide
+    1xx: System/Meta
+    100 startup
+    101 configuration
+    102 mode switch
+
+    2xx: Engagement Success
+    200 normal message
+    201 direct engagement
+    202 probabilistic insight
+    203 future projection
+
+    3xx: Thread Flow/Relations
+    300 thread start
+    301 continuing thread
+    302 reference
+    310 branch start
+    311 parallel discussion
+    320 thread merge
+    321 convergent insight
+    330 context switch
+    331 active dialogue
+
+    4xx: Engagement Blockers
+    401 directed elsewhere
+    402 no engagement
+    403 insufficient context
+    404 not found/relevant
+
+    5xx: System Constraints
+    501 rate limited
+    502 rapid sequence
+    503 service unavailable
+--> 
