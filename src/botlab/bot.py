@@ -49,18 +49,11 @@ class Bot:
     
     def get_momentum_sequence(self, sequence_type: str) -> List[MomentumMessage]:
         """Get a momentum sequence by type."""
-        setup_messages = [
-            {
-                'role_type': 'user',
-                'content': 'You are onii-chan. Do you understand?'
-            },
-            {
-                'role_type': 'assistant',
-                'content': 'Yes, I understand. I am onii-chan.'
-            }
-        ]
-
-        return setup_messages
+        for sequence in self.config.momentum_sequences:
+            if sequence.type == sequence_type:
+                logger.info(sequence.messages)
+                return sequence.messages
+        return []
     
     def format_message_history(self, chat_id: int) -> str:
         """Format message history as XML."""
@@ -221,9 +214,9 @@ class Bot:
             history_xml = self.format_message_history(chat_id)
             
             # Get initialization sequence
-            init_sequence = self.get_momentum_sequence('init')
+            init_sequence = self.get_momentum_sequence('initialization')
             system_messages = [
-                {'role': msg['role_type'], 'content': msg['content']}
+                {'role': msg.role_type, 'content': msg.content}
                 for msg in init_sequence
             ]
             
@@ -237,7 +230,7 @@ class Bot:
                 Remember to follow the guidelines about group chat interaction and context awareness.
                 """}
             ]
-            
+
             # Get response from Claude
             assistant_message = await self.call_claude_api(messages)
             await update.message.reply_text(assistant_message)
