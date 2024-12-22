@@ -18,6 +18,7 @@ class InhibitorFilter(Filter):
     async def _filter_message(self, message: Dict) -> Optional[Dict]:
         """Determine if message should be allowed or blocked"""
         try:
+            logger.debug("Starting inhibitor analysis")
             # Get system prompt and inject speaker context
             init_sequence = self.config.get_momentum_sequence('initialization')
             system_msg = ""
@@ -26,6 +27,7 @@ class InhibitorFilter(Filter):
                     system_msg = msg.content.replace('[SPEAKER_PROMPT]', self.speaker_prompt)
                     break
 
+            logger.debug(f"Analyzing history: {message.get('history_xml', '')[:200]}...")
             # Format analysis request
             history_xml = message.get('history_xml', '')
             analysis_request = f"""
@@ -34,8 +36,10 @@ class InhibitorFilter(Filter):
             """
 
             # Get LLM analysis
+            logger.debug("Calling LLM for inhibition analysis")
             analysis = await self._call_llm(system_msg, analysis_request)
             if not analysis:
+                logger.warning("No response from LLM for inhibition analysis")
                 return None
 
             # Parse response
@@ -43,12 +47,13 @@ class InhibitorFilter(Filter):
                 xml_start = analysis.find('<message')
                 xml_end = analysis.find('</message>') + len('</message>')
                 if xml_start == -1 or xml_end == -1:
-                    logger.error("Could not find message tags in response")
+                    logger.error("Could not find message tags in LLM response")
                     return None
                     
                 xml_content = analysis[xml_start:xml_end]
                 message = ET.fromstring(xml_content)
                 
+                logger.info(f"Inhibitor decision: code={message.get('code', '500')}")
                 return {
                     'code': message.get('code', '500'),
                     'reason': message.text if message.text else "No reason provided"

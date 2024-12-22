@@ -14,10 +14,13 @@ class Filter(Agent):
     async def process_message(self, message: Dict) -> Optional[Dict]:
         """Process a message and return filter decision"""
         try:
+            logger.debug(f"Processing message through filter: {self.config.name}")
             decision = await self._filter_message(message)
             if not decision:
+                logger.warning(f"No decision from filter {self.config.name}")
                 return None
                 
+            logger.debug(f"Filter decision: {decision}")
             return {
                 'agent': self.config.name.lower(),
                 'timestamp': message.get('timestamp'),
@@ -28,7 +31,7 @@ class Filter(Agent):
             }
             
         except Exception as e:
-            logger.error(f"Error in filter: {str(e)}")
+            logger.error(f"Error in filter {self.config.name}: {str(e)}")
             return None
             
     @abstractmethod

@@ -23,8 +23,9 @@ class MomentumManager:
         return sequence.messages if sequence else None
         
     async def initialize(self, chat_id: int) -> bool:
-        """Initialize momentum for a new chat"""
+        """Initialize momentum for a chat"""
         try:
+            logger.info(f"Initializing momentum for chat {chat_id}")
             messages = self._get_sequence("init")
             if not messages:
                 logger.error("No initialization sequence found")
@@ -36,20 +37,24 @@ class MomentumManager:
                 for msg in messages
             ]
             
+            logger.debug(f"Sending initialization sequence: {api_messages}")
             response = await self.llm_service.call_api("", api_messages)
             if response:
+                logger.info(f"Successfully initialized momentum for chat {chat_id}")
                 self.initialized_chats.add(chat_id)
                 return True
                 
+            logger.warning(f"Failed to get response during initialization for chat {chat_id}")
             return False
             
         except Exception as e:
-            logger.error(f"Error initializing momentum: {str(e)}")
+            logger.error(f"Failed to initialize momentum: {str(e)}")
             return False
             
     async def recover(self, chat_id: int) -> bool:
-        """Recover momentum after context loss"""
+        """Recover momentum after error"""
         try:
+            logger.info(f"Attempting momentum recovery for chat {chat_id}")
             messages = self._get_sequence("recovery")
             if not messages:
                 logger.error("No recovery sequence found")
@@ -64,5 +69,5 @@ class MomentumManager:
             return bool(response)
             
         except Exception as e:
-            logger.error(f"Error recovering momentum: {str(e)}")
+            logger.error(f"Failed to recover momentum: {str(e)}")
             return False 

@@ -1,6 +1,9 @@
 from typing import Dict, Optional
 from datetime import datetime
 import xml.etree.ElementTree as ET
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Message:
     """Represents a message in the conversation"""
@@ -75,10 +78,11 @@ class Message:
         content = ET.SubElement(msg, 'content')
         content.text = self.content
         
-        return ET.tostring(msg, encoding='unicode', method='xml')
+        xml_str = ET.tostring(msg, encoding='unicode', method='xml')
+        return xml_str
         
     @classmethod
-    def from_xml(cls, xml_str: str) -> 'Message':
+    def from_xml(cls, xml_str: str) -> Optional['Message']:
         """Create message from XML string"""
         try:
             # Parse XML string
@@ -114,5 +118,4 @@ class Message:
             )
             
         except Exception as e:
-            logger.error(f"Error parsing message XML: {str(e)}")
             return None

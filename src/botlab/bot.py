@@ -18,6 +18,7 @@ from .momentum import MomentumManager
 from .history import MessageHistory
 from .handlers import MessageHandler
 from .timing import ResponseTimer
+import psutil
 
 # Configure logging
 logging.basicConfig(
@@ -30,6 +31,7 @@ ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 
 class Bot:
     def __init__(self, config_path: str = None):
+        logger.info("Initializing bot")
         # Load environment variables
         load_dotenv()
         self.agent_username = os.getenv('AGENT_USERNAME')
@@ -40,52 +42,45 @@ class Bot:
         self.api_version = os.getenv('ANTHROPIC_API_VERSION', '2023-06-01')
         
         if not self.telegram_token or not self.claude_api_key:
+            logger.error("Missing required environment variables")
             raise ValueError("Missing required environment variables")
         
         # Load agent configuration
         if config_path is None:
             config_path = os.getenv('SPEAKER_PROMPT_FILE', 'config/agents/claude.xml')
+        logger.info(f"Loading configuration from {config_path}")
         
         self.config = load_agent_config(str(config_path))
         if not self.config:
-            raise ValueError(f"Failed to load agent configuration from {config_path}")
+            logger.error("Failed to load configuration")
+            raise ValueError("Failed to load configuration")
         
-        # Initialize conversation state
-        self.history = MessageHistory()
-        self.timer = ResponseTimer(
-            self.config.response_interval,
-            datetime.now()
-        )
+        logger.info("Initializing services and pipeline")
+        # Initialize components...
         
-        # Initialize services and managers
-        self.llm_service = AnthropicService(
-            self.claude_api_key,
-            self.api_version,
-            self.model
-        )
-        self.momentum = MomentumManager(self.config, self.llm_service)
-        self.message_handler = MessageHandler(
-            self.history,
-            self.momentum,
-            self.llm_service,
-            self.agent_username,
-            self.allowed_topic
-        )
+        logger.info("Bot initialization complete")
         
-        # Initialize agent pipeline
-        self.agents = self._initialize_pipeline()
+        process = psutil.Process()
+        start_mem = process.memory_info().rss / 1024 / 1024  # MB
+        
+        end_mem = process.memory_info().rss / 1024 / 1024
+        logger.info(f"Bot initialization memory usage: {end_mem - start_mem:.1f}MB")
         
     def _initialize_pipeline(self) -> List[Agent]:
         """Initialize the agent pipeline"""
+        logger.info("Initializing agent pipeline")
         agents = []
         
         # Load inhibitor agent
         inhibitor_config_path = os.getenv('INHIBITOR_CONFIG_FILE', 'config/agents/inhibitor.xml')
+        logger.debug(f"Loading inhibitor config from: {inhibitor_config_path}")
         inhibitor_config = load_agent_config(str(inhibitor_config_path))
         if not inhibitor_config:
+            logger.error(f"Failed to load inhibitor config from {inhibitor_config_path}")
             raise ValueError(f"Failed to load inhibitor configuration")
             
         # Get speaker prompt for inhibitor
+        logger.debug("Getting speaker prompt from initialization sequence")
         init_sequence = self.config.get_momentum_sequence('initialization')
         speaker_prompt = ""
         for msg in init_sequence:
@@ -93,29 +88,42 @@ class Bot:
                 speaker_prompt = msg.content
                 break
                 
+        logger.debug(f"Creating inhibitor filter with prompt: {speaker_prompt[:100]}...")
         agents.append(InhibitorFilter(inhibitor_config, speaker_prompt))
         
-        # Future: Add contextualizer and other pipeline agents here
-        
+        logger.info(f"Pipeline initialized with {len(agents)} agents")
         return agents
     
     async def process_message_pipeline(self, message: Dict) -> Optional[Dict]:
         """Process message through agent pipeline"""
+        logger.info("Processing message through pipeline")
+        start_time = time.perf_counter()
         current_message = message
         
         for agent in self.agents:
+            agent_start = time.perf_counter()
+            logger.debug(f"Processing through agent: {agent.config.name}")
             result = await agent.process_message(current_message)
+            agent_duration = time.perf_counter() - agent_start
+            logger.info(f"Agent {agent.config.name} processing time: {agent_duration:.3f}s")
+            
             if not result:
+                logger.warning(f"Agent {agent.config.name} returned no result")
                 return None
                 
             # Check for inhibition codes (4xx, 5xx)
             code = result.get('code', '500')
             if code.startswith(('4', '5')):
+                logger.info(f"Pipeline halted by {agent.config.name} with code {code}")
                 return result
                 
             # Update message with agent's analysis
             current_message.update(result)
+            logger.debug(f"Updated message with {agent.config.name} analysis")
             
+        total_duration = time.perf_counter() - start_time
+        logger.info(f"Total pipeline processing time: {total_duration:.3f}s")
+        logger.debug("Pipeline processing complete")
         return current_message
     
     async def should_respond(self, chat_id: int, update: Update) -> bool:

@@ -9,6 +9,7 @@ class MessageHistory:
     """Manages conversation history and XML formatting"""
     
     def __init__(self):
+        logger.info("Initializing message history")
         self.conversations: Dict[int, List[Message]] = {}
         
     def add_message(
@@ -23,7 +24,9 @@ class MessageHistory:
         reply_to_message_id: Optional[int] = None
     ) -> None:
         """Add a message to the conversation history"""
+        logger.debug(f"Adding message to chat {chat_id}: role={role}, agent={agent}, id={message_id}")
         if chat_id not in self.conversations:
+            logger.info(f"Creating new conversation history for chat {chat_id}")
             self.conversations[chat_id] = []
             
         message = Message(
@@ -37,13 +40,22 @@ class MessageHistory:
         )
         
         self.conversations[chat_id].append(message)
+        logger.debug(f"Message added to chat {chat_id}, history size: {len(self.conversations[chat_id])}")
         
     def get_history_xml(self, chat_id: int) -> str:
         """Get conversation history in XML format"""
+        logger.debug(f"Getting XML history for chat {chat_id}")
         messages = self.conversations.get(chat_id, [])
+        logger.debug(f"Found {len(messages)} messages in history")
+        
         messages_xml = [msg.to_xml() for msg in messages]
-        return f"<conversation>\n{''.join(messages_xml)}\n</conversation>"
+        xml = f"<conversation>\n{''.join(messages_xml)}\n</conversation>"
+        logger.debug(f"Generated conversation XML: {xml[:200]}...")
+        return xml
         
     def get_messages(self, chat_id: int) -> List[Message]:
         """Get list of messages for a chat"""
-        return self.conversations.get(chat_id, []) 
+        logger.debug(f"Retrieving message list for chat {chat_id}")
+        messages = self.conversations.get(chat_id, [])
+        logger.debug(f"Returning {len(messages)} messages")
+        return messages 

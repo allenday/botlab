@@ -13,8 +13,10 @@ class Agent(ABC):
     """Base class for all agents"""
     
     def __init__(self, config: AgentConfig):
+        logger.info(f"Initializing agent: {config.name}")
         self.config = config
         if not config:
+            logger.error("Missing agent configuration")
             raise ValueError("Agent requires a valid configuration")
         
         # Cache service config
@@ -25,51 +27,13 @@ class Agent(ABC):
     async def _call_llm(self, system_prompt: str, user_message: str) -> Optional[str]:
         """Call LLM API directly"""
         try:
-            headers = {
-                'anthropic-version': self.api_version,
-                'anthropic-beta': 'max-tokens-3-5-sonnet-2024-07-15',
-                'content-type': 'application/json',
-                'x-api-key': self._get_api_key()
-            }
+            logger.debug(f"Calling LLM for agent {self.config.name}")
+            response = await self._make_api_call(system_prompt, user_message)
+            if not response:
+                logger.error(f"No response from LLM for agent {self.config.name}")
+                return None
+            return response
             
-            data = {
-                'model': self.model,
-                'max_tokens': 1024,
-                'temperature': 0.1,
-                'system': system_prompt,
-                'messages': [
-                    {'role': 'user', 'content': user_message}
-                ],
-                'stream': True
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.api_base}/messages",
-                    headers=headers,
-                    json=data
-                ) as response:
-                    if response.status == 200:
-                        full_response = ""
-                        async for line in response.content:
-                            if line:
-                                try:
-                                    line = line.decode('utf-8').strip()
-                                    if line.startswith('data: '):
-                                        data = json.loads(line[6:])
-                                        if data.get('type') == 'message_stop':
-                                            break
-                                        if data.get('type') == 'content_block_delta':
-                                            full_response += data['delta']['text']
-                                except Exception as e:
-                                    logger.error(f"Error parsing stream: {str(e)}")
-                                    continue
-                        return full_response
-                    else:
-                        error = await response.text()
-                        logger.error(f"LLM API error: {error}")
-                        return None
-                        
         except Exception as e:
             logger.error(f"LLM call failed: {str(e)}")
             return None
@@ -79,12 +43,15 @@ class Agent(ABC):
         import os
         key = os.getenv('ANTHROPIC_API_KEY')
         if not key:
+            logger.error("ANTHROPIC_API_KEY environment variable not set")
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+        logger.debug("Successfully retrieved API key")
         return key
 
     def _extract_code(self, analysis: str, default: str = '310') -> str:
         """Extract status code from XML context response"""
         try:
+            logger.debug("Extracting status code from analysis")
             # Parse full context XML
             context = ET.fromstring(analysis)
             # Get management message code
@@ -94,7 +61,7 @@ class Agent(ABC):
                 if code:
                     logger.debug(f"Extracted code {code} from analysis")
                     return code
-            logger.warning(f"No code found in analysis")
+            logger.warning(f"No code found in analysis, using default: {default}")
             return default
         except Exception as e:
             logger.error(f"Error extracting code: {str(e)}")

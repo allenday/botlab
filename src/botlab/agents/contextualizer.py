@@ -4,12 +4,14 @@ from datetime import datetime
 from .observer import Observer
 from ..xml_handler import AgentConfig
 import xml.etree.ElementTree as ET
+import re
 
 logger = logging.getLogger(__name__)
 
 class ThreadRelation:
     """Represents a relation between threads in the conversation poset"""
     def __init__(self, thread_id: str, relation_type: str, timestamp: str):
+        logger.debug(f"Creating thread relation: {thread_id} ({relation_type})")
         self.thread_id = thread_id
         self.relation_type = relation_type  # 'concurrent' or 'precedes'
         self.timestamp = timestamp
@@ -22,6 +24,7 @@ class Contextualizer(Observer):
     """
     
     def __init__(self, config: AgentConfig):
+        logger.info(f"Initializing contextualizer agent: {config.name}")
         super().__init__(config)
         self.boundaries: List[Dict] = []
         # Maps thread IDs to sets of concurrent threads with their start times
@@ -31,6 +34,7 @@ class Contextualizer(Observer):
         
     def _add_concurrent_thread(self, thread_id: str, concurrent_id: str, start_time: str):
         """Add a concurrent relationship between threads"""
+        logger.debug(f"Adding concurrent relationship: {thread_id} <-> {concurrent_id}")
         if thread_id not in self.concurrent_threads:
             self.concurrent_threads[thread_id] = {}
         if concurrent_id not in self.concurrent_threads:
@@ -38,14 +42,17 @@ class Contextualizer(Observer):
             
         self.concurrent_threads[thread_id][concurrent_id] = start_time
         self.concurrent_threads[concurrent_id][thread_id] = start_time
+        logger.debug(f"Updated concurrent threads for {thread_id}: {self.concurrent_threads[thread_id]}")
         
     def _add_thread_ordering(self, before_id: str, after_id: str, timestamp: str):
         """Add an ordering constraint between threads"""
+        logger.debug(f"Adding thread ordering: {before_id} -> {after_id}")
         if after_id not in self.thread_ordering:
             self.thread_ordering[after_id] = []
         self.thread_ordering[after_id].append(
             ThreadRelation(before_id, 'precedes', timestamp)
         )
+        logger.debug(f"Updated thread ordering for {after_id}: {self.thread_ordering[after_id]}")
         
     async def _analyze_message(self, message) -> Optional[Dict]:
         """Analyze message for context management"""
@@ -165,12 +172,35 @@ class Contextualizer(Observer):
         
     def get_context_boundaries(self) -> List[Dict]:
         """Get list of detected context boundaries"""
+        logger.debug(f"Retrieving {len(self.boundaries)} context boundaries")
         return self.boundaries
         
     def get_concurrent_threads(self, thread_id: str) -> Dict[str, str]:
         """Get dict mapping concurrent thread IDs to their start times"""
-        return self.concurrent_threads.get(thread_id, {})
+        logger.debug(f"Getting concurrent threads for {thread_id}")
+        concurrent = self.concurrent_threads.get(thread_id, {})
+        logger.debug(f"Found {len(concurrent)} concurrent threads")
+        return concurrent
         
     def get_thread_ordering(self, thread_id: str) -> List[ThreadRelation]:
         """Get list of threads that must precede this thread"""
-        return self.thread_ordering.get(thread_id, [])
+        logger.debug(f"Getting thread ordering for {thread_id}")
+        ordering = self.thread_ordering.get(thread_id, [])
+        logger.debug(f"Found {len(ordering)} preceding threads")
+        return ordering
+        
+    def _update_emotional_context(self, thread_id: str, content: str):
+        """Update emotional context based on message content"""
+        logger.debug(f"Updating emotional context for thread {thread_id}")
+        thread = self.threads[thread_id]
+        
+        # High intensity for caps, exclamations
+        if re.search(r'[A-Z]{3,}|!{2,}', content):
+            logger.debug(f"Detected high emotional intensity in thread {thread_id}")
+            thread['metadata']['emotional_context']['intensity'] = 1.0
+            
+        # Negative valence for urgent/critical/disaster
+        if re.search(r'urgent|critical|disaster', content.lower()):
+            logger.debug(f"Detected negative emotional valence in thread {thread_id}")
+            thread['metadata']['emotional_context']['valence'] = -1.0
+        logger.debug(f"Updated emotional context: {thread['metadata']['emotional_context']}")

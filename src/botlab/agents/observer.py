@@ -41,26 +41,35 @@ class Observer(Agent):
     async def process_message(self, message) -> Dict:
         """Process an incoming message and return observer response"""
         try:
-            # Extract message data
-            content = message.text
-            timestamp = message.get('timestamp')
-            thread_id = message.get('thread')
-            
-            # Analyze message context
-            analysis_result = await self._analyze_message(message)
-            if analysis_result:
-                return analysis_result
-            
-            # Default to thread update
-            return self._format_response('310', thread_id, "Updated context")
+            logger.debug(f"Processing message through observer: {self.config.name}")
+            analysis = await self._analyze_message(message)
+            if not analysis:
+                logger.warning(f"No analysis from observer {self.config.name}")
+                return None
+                
+            logger.debug(f"Observer analysis: {analysis}")
+            return {
+                'agent': self.config.name.lower(),
+                'timestamp': message.get('timestamp'),
+                'mode': 'observe',
+                'code': analysis.get('code', '500'),
+                'thread': message.get('thread_id'),
+                'analysis': analysis
+            }
             
         except Exception as e:
-            logger.error(f"Error processing message: {str(e)}")
-            return self._format_response('500', None, "Error processing message")
-
+            logger.error(f"Error in observer {self.config.name}: {str(e)}")
+            return None
+            
     @abstractmethod
-    async def _analyze_message(self, message) -> Optional[Dict]:
-        """Analyze message based on configuration"""
+    async def _analyze_message(self, message: Dict) -> Optional[Dict]:
+        """
+        Analyze a message. Should return:
+        {
+            'code': status code,
+            'analysis': analysis dict
+        }
+        """
         pass
 
     def get_thread_metadata(self, thread_id: str) -> Optional[Dict]:
@@ -73,6 +82,7 @@ class Observer(Agent):
 
     def _create_thread(self, content: str) -> str:
         """Create a new thread and return thread ID"""
+        logger.debug("Creating new thread")
         topic = self._extract_topic(content)
         thread_id = f"{topic}_{self._generate_hex_id()}"
         
@@ -83,10 +93,12 @@ class Observer(Agent):
         }
         
         self._update_lru_cache(thread_id)
+        logger.info(f"Created new thread: {thread_id}")
         return thread_id
 
     def _update_thread(self, thread_id: str, content: str):
         """Update thread with new message"""
+        logger.debug(f"Updating thread {thread_id}")
         thread = self.threads[thread_id]
         thread['messages'].append({
             'content': content,
@@ -95,9 +107,11 @@ class Observer(Agent):
         
         # Maintain context length
         if len(thread['messages']) > self.context_length:
+            logger.debug(f"Trimming thread {thread_id} to maintain context length")
             thread['messages'].pop(0)
         
         self._update_lru_cache(thread_id)
+        logger.debug(f"Thread {thread_id} updated, message count: {len(thread['messages'])}")
 
     def _format_response(self, code: str, thread_id: Optional[str], message: str) -> Dict:
         """Format observer response"""
@@ -112,6 +126,7 @@ class Observer(Agent):
 
     def _update_lru_cache(self, thread_id: str):
         """Update LRU cache of threads"""
+        logger.debug(f"Updating LRU cache for thread {thread_id}")
         if thread_id in self.lru_cache:
             self.lru_cache.remove(thread_id)
         self.lru_cache.append(thread_id)
@@ -120,20 +135,25 @@ class Observer(Agent):
         while len(self.lru_cache) > self.max_threads:
             oldest = self.lru_cache.pop(0)
             if oldest in self.threads:
+                logger.info(f"Evicting thread {oldest} from cache")
                 del self.threads[oldest]
 
     def _load_metadata(self) -> Dict:
         """Load agent-specific metadata from config"""
-        return {
+        logger.debug(f"Loading metadata for agent: {self.config.name}")
+        metadata = {
             'name': self.config.name,
             'type': self.config.type,
             'category': self.config.category,
             'version': self.config.version
         }
+        logger.debug(f"Loaded metadata: {metadata}")
+        return metadata
 
     @staticmethod
     def _extract_topic(content: str) -> str:
         """Extract topic from message content using LLM analysis"""
+        logger.debug(f"Extracting topic from content: {content[:100]}...")
         # This will be overridden by specific agents to use their LLM
         return 'general'
 
@@ -141,7 +161,9 @@ class Observer(Agent):
     def _generate_hex_id() -> str:
         """Generate random 4-character hex ID"""
         import random
-        return ''.join(random.choices('0123456789abcdef', k=4))
+        hex_id = ''.join(random.choices('0123456789abcdef', k=4))
+        logger.debug(f"Generated hex ID: {hex_id}")
+        return hex_id
 
     def get_metadata(self) -> Dict:
         """Get agent metadata"""
