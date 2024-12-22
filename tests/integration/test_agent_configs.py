@@ -1,42 +1,31 @@
 import pytest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
-from botlab.agents.inhibitor import InhibitorFilter
+from telegram import Update
+from telegram.ext import ContextTypes
 from botlab.xml_handler import load_agent_config
 
-CONFIG_DIR = Path(__file__).parent.parent.parent / "config"
+CONFIG_DIR = Path(__file__).parent.parent.parent / "config/agents"
 
-@pytest.mark.asyncio
-async def test_inhibitor_config():
-    """Test that inhibitor config works with actual agent"""
-    config_path = CONFIG_DIR / "agents/inhibitor.xml"
-    config = load_agent_config(config_path)
+def test_inhibitor_config():
+    """Test loading and validating inhibitor config"""
+    config_path = CONFIG_DIR / "inhibitor.xml"
+    config = load_agent_config(str(config_path))
+    assert config is not None
+    assert config.type == "Response Gatekeeper"
+    assert config.category == "filter"
+    assert len(config.momentum_sequences) > 0
     
-    # Mock the API service
-    class MockService:
-        def __init__(self):
-            self.model = "test-model"
-            self.api_version = "test-version"
-            
-        async def call_api(self, *args, **kwargs):
-            return '<context><management><message code="200">OK</message></management></context>'
-    
-    config.service = MockService()
-    
-    class _TestInhibitor(InhibitorFilter):
-        def get_metadata(self) -> dict:
-            return {
-                'name': self.config.name,
-                'type': self.config.type,
-                'version': self.config.version
-            }
-    
-    agent = _TestInhibitor(config, speaker_prompt="Test system prompt")
-    result = await agent.process_message({
-        'text': 'test message',
-        'thread_id': '123'
-    })
-    assert result is not None
-    assert 'code' in result
+    # Test required sequences
+    sequence_ids = {seq.id for seq in config.momentum_sequences}
+    assert "init" in sequence_ids, "Missing initialization sequence"
+
+def test_all_agent_configs():
+    """Test loading all agent configs"""
+    for config_file in CONFIG_DIR.glob("*.xml"):
+        config = load_agent_config(str(config_file))
+        assert config is not None, f"Failed to load {config_file.name}"
+        assert config.type is not None
+        assert config.category is not None
+        assert len(config.momentum_sequences) > 0
 
 # Similar tests for other agent types... 

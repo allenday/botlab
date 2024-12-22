@@ -3,97 +3,84 @@ import shutil
 from botlab.xml_handler import validate_xml_dtd, parse_momentum_sequence, load_agent_config
 import xml.etree.ElementTree as ET
 from pathlib import Path
+import tempfile
 
 @pytest.fixture
-def test_dtd(tmp_path):
-    # Create dtd directory in temp path
-    dtd_dir = tmp_path / "dtd"
-    dtd_dir.mkdir()
-    
-    # Write test DTD
-    dtd_content = '''
-    <!-- Agent Configuration DTD v1.0 -->
-    <!ELEMENT agent (metadata, communication, behavior, constraints, momentum)>
-    <!ATTLIST agent dtd_version CDATA #REQUIRED>
-    <!ELEMENT metadata (name, type, version, timing)>
-    <!ELEMENT name (#PCDATA)>
-    <!ELEMENT type (#PCDATA)>
-    <!ATTLIST type category CDATA #REQUIRED>
-    <!ELEMENT version (#PCDATA)>
-    <!ELEMENT timing (response_interval)>
-    <!ELEMENT response_interval (#PCDATA)>
-    <!ATTLIST response_interval unit (seconds|milliseconds) "seconds">
-    <!ELEMENT communication (input, output)>
-    <!ELEMENT input (format)>
-    <!ELEMENT output (format)>
-    <!ELEMENT format (#PCDATA)>
-    <!ELEMENT behavior (core_function, methodology)>
-    <!ELEMENT core_function (#PCDATA)>
-    <!ELEMENT methodology (step+)>
-    <!ELEMENT step (#PCDATA)>
-    <!ELEMENT constraints (excluded_topics?)>
-    <!ELEMENT excluded_topics (topic*)>
-    <!ELEMENT topic (#PCDATA)>
-    <!ELEMENT momentum (sequence+)>
-    <!ELEMENT sequence (message+)>
-    <!ATTLIST sequence id CDATA #REQUIRED type CDATA #REQUIRED temperature CDATA "0.1">
-    <!ELEMENT message (role, content)>
-    <!ATTLIST message position CDATA #REQUIRED>
-    <!ELEMENT role (#PCDATA)>
-    <!ATTLIST role type (system|user|assistant) #REQUIRED>
-    <!ELEMENT content (#PCDATA)>
-    '''
-    dtd_path = dtd_dir / "agent.dtd"
-    dtd_path.write_text(dtd_content)
-    return dtd_dir
-
-@pytest.fixture
-def sample_xml(test_dtd):
-    return f'''<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE agent SYSTEM "dtd/agent.dtd">
+def sample_xml():
+    return '''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE agent SYSTEM "../../../config/dtd/agent.dtd">
 <agent dtd_version="1.0">
     <metadata>
         <name>TestBot</name>
-        <type category="test">Test Assistant</type>
+        <type category="foundation">Test Assistant</type>
         <version>1.0</version>
         <timing>
             <response_interval unit="seconds">30</response_interval>
         </timing>
+        <service>
+            <provider>anthropic</provider>
+            <model>claude-3-opus-20240229</model>
+            <api_version>2024-02-15</api_version>
+        </service>
     </metadata>
-    <communication>
-        <input><format>Test Format</format></input>
-        <output><format>Test Format</format></output>
-    </communication>
-    <behavior>
-        <core_function>test function</core_function>
-        <methodology><step>test step</step></methodology>
-    </behavior>
+    <objectives>
+        <primary>Test objective</primary>
+        <secondary><objective>Test</objective></secondary>
+        <metrics><metric>Test</metric></metrics>
+    </objectives>
+    <styles>
+        <communication_style><aspect>Test</aspect></communication_style>
+        <analytical_style><aspect>Test</aspect></analytical_style>
+    </styles>
     <constraints>
-        <excluded_topics><topic>test topic</topic></excluded_topics>
+        <operational><constraint>Test</constraint></operational>
+        <technical><constraint>Test</constraint></technical>
     </constraints>
+    <counterparty_perception>
+        <assumptions><assumption>Test</assumption></assumptions>
+        <adaptation><strategy>Test</strategy></adaptation>
+    </counterparty_perception>
     <momentum>
-        <sequence id="test" type="test" temperature="0.5">
+        <sequence id="init" type="initialization" temperature="0.5">
             <message position="1">
-                <role type="system">Test Role</role>
+                <role type="system"/>
                 <content>Test Content</content>
             </message>
         </sequence>
     </momentum>
+    <communication>
+        <input>
+            <message_format><schema>Test</schema></message_format>
+            <analysis_points><point>Test</point></analysis_points>
+            <history>
+                <lru_cache>
+                    <threads max_count="100">
+                        <context length="10"/>
+                    </threads>
+                </lru_cache>
+            </history>
+        </input>
+        <output><format>Test</format></output>
+    </communication>
+    <behavior>
+        <core_function>Test</core_function>
+        <methodology><step>Test</step></methodology>
+    </behavior>
 </agent>'''
 
 @pytest.fixture
 def sample_sequence():
     element = ET.fromstring("""
-    <sequence id="test" type="test" temperature="0.5">
+    <sequence id="init" type="initialization" temperature="0.5">
         <message position="1">
-            <role type="system">Test Role</role>
+            <role type="system"/>
             <content>Test Content</content>
         </message>
     </sequence>
     """)
     return element
 
-def test_validate_xml_dtd(tmp_path, test_dtd, sample_xml):
+def test_validate_xml_dtd(tmp_path, sample_xml):
     # Write sample XML to temporary file
     xml_path = tmp_path / "test_agent.xml"
     xml_path.write_text(sample_xml)
@@ -104,26 +91,84 @@ def test_validate_xml_dtd(tmp_path, test_dtd, sample_xml):
 def test_parse_momentum_sequence(sample_sequence):
     sequence = parse_momentum_sequence(sample_sequence)
     assert sequence is not None
-    assert sequence.id == "test"
-    assert sequence.type == "test"
+    assert sequence.id == "init"
+    assert sequence.type == "initialization"
     assert sequence.temperature == 0.5
     assert len(sequence.messages) == 1
     assert sequence.messages[0].role_type == "system"
     assert sequence.messages[0].content == "Test Content"
     assert sequence.messages[0].position == 1
 
-def test_load_agent_config(tmp_path, test_dtd, sample_xml):
-    # Write sample XML to temporary file
-    xml_path = tmp_path / "test_agent.xml"
-    xml_path.write_text(sample_xml)
+def test_load_agent_config():
+    """Test loading agent configuration"""
+    xml_str = """<?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE agent SYSTEM "../../../config/dtd/agent.dtd">
+    <agent dtd_version="1.0">
+        <metadata>
+            <name>TestAgent</name>
+            <type category="foundation">inhibitor</type>
+            <version>1.0</version>
+            <timing>
+                <response_interval unit="seconds">30</response_interval>
+            </timing>
+            <service>
+                <provider>anthropic</provider>
+                <model>claude-3-opus-20240229</model>
+                <api_version>2024-02-15</api_version>
+            </service>
+        </metadata>
+        <objectives>
+            <primary>Test objective</primary>
+            <secondary><objective>Test</objective></secondary>
+            <metrics><metric>Test</metric></metrics>
+        </objectives>
+        <styles>
+            <communication_style><aspect>Test</aspect></communication_style>
+            <analytical_style><aspect>Test</aspect></analytical_style>
+        </styles>
+        <constraints>
+            <operational><constraint>Test</constraint></operational>
+            <technical><constraint>Test</constraint></technical>
+        </constraints>
+        <counterparty_perception>
+            <assumptions><assumption>Test</assumption></assumptions>
+            <adaptation><strategy>Test</strategy></adaptation>
+        </counterparty_perception>
+        <momentum>
+            <sequence id="init" type="initialization" temperature="0.1">
+                <message position="0">
+                    <role type="system"/>
+                    <content>Test</content>
+                </message>
+            </sequence>
+        </momentum>
+        <communication>
+            <input>
+                <message_format><schema>Test</schema></message_format>
+                <analysis_points><point>Test</point></analysis_points>
+            </input>
+            <output><format>Test</format></output>
+        </communication>
+        <behavior>
+            <core_function>Test</core_function>
+            <methodology><step>Test</step></methodology>
+        </behavior>
+    </agent>
+    """
     
-    # Test config loading
-    config = load_agent_config(str(xml_path))
-    assert config is not None
-    assert config.name == "TestBot"
-    assert config.type == "Test Assistant"
-    assert config.category == "test"
-    assert config.version == "1.0"
-    assert config.response_interval == 30.0
-    assert config.response_interval_unit == "seconds"
-    assert len(config.momentum_sequences) == 1
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.xml') as tmp:
+        tmp.write(xml_str)
+        tmp.flush()
+        
+        config = load_agent_config(tmp.name)
+        assert config is not None
+        assert config.name == "TestAgent"
+        assert config.type == "inhibitor"
+        assert config.category == "foundation"
+        assert config.version == "1.0"
+        assert config.response_interval == 30
+        assert config.response_interval_unit == "seconds"
+        assert len(config.momentum_sequences) == 1
+        assert config.service.provider == "anthropic"
+        assert config.service.model == "claude-3-opus-20240229"
+        assert config.service.api_version == "2024-02-15"

@@ -1,10 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
 import logging
-import aiohttp
-import json
 from ..xml_handler import AgentConfig
-import re
 import xml.etree.ElementTree as ET
 
 logger = logging.getLogger(__name__)

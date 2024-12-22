@@ -2,9 +2,8 @@ import logging
 import xml.etree.ElementTree as ET
 from lxml import etree
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Optional
+from typing import List, Optional
 from pathlib import Path
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +21,12 @@ class MomentumSequence:
     messages: List[MomentumMessage]
 
 @dataclass
+class ServiceConfig:
+    provider: str
+    model: str
+    api_version: str
+
+@dataclass
 class AgentConfig:
     name: str
     type: str
@@ -30,20 +35,31 @@ class AgentConfig:
     response_interval: float
     response_interval_unit: str
     momentum_sequences: List[MomentumSequence]
+    service: ServiceConfig
 
 def validate_xml_dtd(xml_path: str) -> bool:
     """Validate XML against its DTD."""
     try:
         logger.info(f"Validating XML: {xml_path}")
         
-        # Create a validating parser
+        # Get project root directory
+        project_root = Path(__file__).parent.parent.parent
+        
+        # Create a validating parser with custom entity resolver
+        class DTDResolver(etree.Resolver):
+            def resolve(self, system_url, public_id, context):
+                if system_url.endswith('agent.dtd'):
+                    dtd_path = project_root / 'config' / 'dtd' / 'agent.dtd'
+                    return self.resolve_filename(str(dtd_path), context)
+                return None
+                
         parser = etree.XMLParser(
             dtd_validation=True,
             load_dtd=True,
-            no_network=False,  # Allow loading external DTDs
             resolve_entities=True,
             attribute_defaults=True
         )
+        parser.resolvers.add(DTDResolver())
         
         # Parse and validate
         try:
@@ -140,6 +156,26 @@ def load_agent_config(xml_path: str) -> Optional[AgentConfig]:
         interval_unit = response_interval.get('unit', 'seconds')
         logger.debug(f"Response interval: {interval_value} {interval_unit}")
         
+        # Parse service config
+        service_elem = metadata.find('service')
+        if service_elem is None:
+            logger.error("Missing service configuration")
+            raise ValueError("Missing service configuration")
+            
+        provider = service_elem.find('provider')
+        model = service_elem.find('model')
+        api_version = service_elem.find('api_version')
+        
+        if None in (provider, model, api_version):
+            logger.error("Missing required service elements")
+            raise ValueError("Missing required service elements")
+            
+        service_config = ServiceConfig(
+            provider=provider.text or '',
+            model=model.text or '',
+            api_version=api_version.text or ''
+        )
+        
         # Parse momentum sequences
         momentum = root.find('momentum')
         sequences = []
@@ -159,7 +195,8 @@ def load_agent_config(xml_path: str) -> Optional[AgentConfig]:
             version=version.text or '',
             response_interval=interval_value,
             response_interval_unit=interval_unit,
-            momentum_sequences=sequences
+            momentum_sequences=sequences,
+            service=service_config
         )
         
     except Exception as e:

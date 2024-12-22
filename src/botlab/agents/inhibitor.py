@@ -11,9 +11,18 @@ class InhibitorFilter(Filter):
     Makes binary allow/block decisions using status codes.
     """
     
-    def __init__(self, config, speaker_prompt: str):
+    def __init__(self, config, speaker_prompt: str = ""):
         super().__init__(config)
         self.speaker_prompt = speaker_prompt
+        
+    def get_metadata(self) -> Dict:
+        """Get agent metadata"""
+        return {
+            'name': self.config.name,
+            'type': self.config.type,
+            'category': self.config.category,
+            'version': self.config.version
+        }
         
     async def _filter_message(self, message: Dict) -> Optional[Dict]:
         """Determine if message should be allowed or blocked"""
