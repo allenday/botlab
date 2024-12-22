@@ -24,6 +24,7 @@ class Bot:
     def __init__(self, config_path: str = None):
         # Load environment variables
         load_dotenv()
+        self.agent_username = os.getenv('AGENT_USERNAME')
         self.telegram_token = os.getenv('TELEGRAM_TOKEN')
         self.claude_api_key = os.getenv('ANTHROPIC_API_KEY')
         self.allowed_topic = os.getenv('ALLOWED_TOPIC_NAME')
@@ -48,10 +49,18 @@ class Bot:
     
     def get_momentum_sequence(self, sequence_type: str) -> List[MomentumMessage]:
         """Get a momentum sequence by type."""
-        for sequence in self.config.momentum_sequences:
-            if sequence.type == sequence_type:
-                return sequence.messages
-        return []
+        setup_messages = [
+            {
+                'role_type': 'user',
+                'content': 'You are onii-chan. Do you understand?'
+            },
+            {
+                'role_type': 'assistant',
+                'content': 'Yes, I understand. I am onii-chan.'
+            }
+        ]
+
+        return setup_messages
     
     def format_message_history(self, chat_id: int) -> str:
         """Format message history as XML."""
@@ -59,16 +68,24 @@ class Bot:
         messages_xml = []
         
         for msg in history:
+            logger.debug(f"{msg=}")
             role = msg.get('role', '')
+            agent = msg.get('agent', '')
+            message_channel = msg.get('message_channel', '')
+            message_id = msg.get('message_id', '')
+            reply_to_channel = msg.get('reply_to_channel', '')
+            reply_to_message_id = msg.get('reply_to_message_id', '')
             content = msg.get('content', '')
             timestamp = msg.get('timestamp', '')
             
             message_xml = f"""
-            <message timestamp="{timestamp}">
+            <message timestamp="{timestamp}" channel="{message_channel}" id="{message_id}" agent="@{agent}">
+                <reply_to channel="{reply_to_channel}" id="{reply_to_message_id}"/>
                 <role type="{role}">{role}</role>
                 <content>{content}</content>
             </message>
             """
+            logger.info(f"{message_xml=}")
             messages_xml.append(message_xml)
         
         return f"<conversation>\n{''.join(messages_xml)}\n</conversation>"
@@ -100,13 +117,18 @@ class Bot:
         
         return True
     
-    def add_to_history(self, chat_id: int, role: str, content: str):
+    def add_to_history(self, chat_id: int, role: str, content: str, from_user: str, message_channel: str, message_id: int, reply_to_channel: str, reply_to_message_id: int):
         """Add a message to the conversation history."""
         if chat_id not in self.conversation_history:
             self.conversation_history[chat_id] = []
         
         self.conversation_history[chat_id].append({
             'role': role,
+            'agent': from_user,
+            'message_channel': message_channel,
+            'message_id': message_id,
+            'reply_to_channel': reply_to_channel,
+            'reply_to_message_id': reply_to_message_id,
             'content': content,
             'timestamp': datetime.now().isoformat()
         })
@@ -167,16 +189,32 @@ class Bot:
         """Handle incoming messages."""
         if not update.message or not update.message.text:
             return
-        
+       
         chat_id = update.message.chat_id
         message_text = update.message.text
+        from_user = update.message.from_user.username
+        message_channel = update.message.message_thread_id
+        message_id = update.message.message_id
+        reply_to_message_id = None
+        reply_to_channel = None
+        if update.message.reply_to_message:
+            reply_to_channel = update.message.reply_to_message.message_thread_id
+            reply_to_message_id = update.message.reply_to_message.message_id
         
         # Check if we should respond
         if not self.should_respond(chat_id, update):
             return
         
         # Add user message to history
-        self.add_to_history(chat_id, 'user', message_text)
+        self.add_to_history(
+                chat_id, 
+                'user', 
+                message_text, 
+                from_user, 
+                message_channel, 
+                message_id, 
+                reply_to_channel, 
+                reply_to_message_id)
         
         try:
             # Prepare conversation context
@@ -185,7 +223,7 @@ class Bot:
             # Get initialization sequence
             init_sequence = self.get_momentum_sequence('init')
             system_messages = [
-                {'role': msg.role_type, 'content': msg.content}
+                {'role': msg['role_type'], 'content': msg['content']}
                 for msg in init_sequence
             ]
             
@@ -206,7 +244,15 @@ class Bot:
             
             # Update state
             self.last_response_time[chat_id] = datetime.now()
-            self.add_to_history(chat_id, 'assistant', assistant_message)
+            self.add_to_history(
+                    chat_id, 
+                    'assistant', 
+                    assistant_message, 
+                    self.agent_username,
+                    update.message.message_thread_id, 
+                    update.message.message_id, 
+                    update.message.message_thread_id, 
+                    update.message.reply_to_message.message_id)
             
         except Exception as e:
             logger.error(f"Error handling message: {str(e)}")
