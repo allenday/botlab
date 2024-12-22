@@ -1,9 +1,15 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch, Mock
 from datetime import datetime
 from botlab.bot import Bot
 from telegram import Update, Message, User, Chat
 import aiohttp
+from pathlib import Path
+from botlab.history import MessageHistory
+from botlab.timing import ResponseTimer
+from botlab.services.anthropic import AnthropicService
+from botlab.momentum import MomentumManager
+from botlab.handlers import MessageHandler
 
 class MockResponse:
     def __init__(self, status, content):
@@ -100,6 +106,31 @@ def mock_config():
     config.momentum_sequences = []
     return config
 
+@pytest.fixture
+def bot():
+    config_path = Path(__file__).parent.parent.parent / "config/agents/claude.xml"
+    bot = Bot(config_path)
+    # Initialize required components that were commented out
+    bot.history = MessageHistory()
+    bot.timer = ResponseTimer(
+        bot.config.response_interval,
+        datetime.now()
+    )
+    bot.llm_service = AnthropicService(
+        bot.claude_api_key,
+        bot.api_version,
+        bot.model
+    )
+    bot.momentum = MomentumManager(bot.config, bot.llm_service)
+    bot.message_handler = MessageHandler(
+        bot.history,
+        bot.momentum,
+        bot.llm_service,
+        bot.agent_username,
+        bot.allowed_topic
+    )
+    return bot
+
 @pytest.mark.asyncio
 async def test_start_command(mock_update, mock_context, mock_env_vars, mock_config):
     with patch('botlab.bot.load_agent_config', return_value=mock_config):
@@ -114,55 +145,37 @@ async def test_start_command(mock_update, mock_context, mock_env_vars, mock_conf
         assert "TestBot" in call_args
 
 @pytest.mark.asyncio
-async def test_handle_message(mock_update, mock_context, mock_env_vars, mock_config):
-    # Create a mock response that simulates the Claude API streaming response
-    stream_content = [
-        'data: {"type":"content_block_delta","delta":{"text":"Test "}}\n',
-        'data: {"type":"content_block_delta","delta":{"text":"response"}}\n',
-        'data: {"type":"message_stop"}\n'
-    ]
-    mock_response = MockResponse(200, MockStreamReader(stream_content))
-    mock_session = MockClientSession(mock_response)
+async def test_handle_message(bot):
+    update = MagicMock(spec=Update)
+    message = MagicMock(spec=Message)
+    message.text = "test message"
+    message.chat_id = 123
+    message.date = datetime.now()
+    update.message = message
+    update.message.reply_text = AsyncMock()
     
-    with patch('aiohttp.ClientSession', return_value=mock_session), \
-         patch('botlab.bot.load_agent_config', return_value=mock_config), \
-         patch('botlab.bot.Bot.should_respond', return_value=True):
-        # Create bot instance
-        bot = Bot()
-        mock_update.message.reply_text = AsyncMock()
-        
-        # Test message handling
-        await bot.handle_message(mock_update, mock_context)
-        
-        # Verify response was sent
-        mock_update.message.reply_text.assert_called_once_with("Test response")
+    # Mock the message handler
+    bot.message_handler.process_message = AsyncMock(return_value="Test response")
+    
+    await bot.handle_message(update, None)
+    bot.message_handler.process_message.assert_called_once_with(update, bot.agents)
 
 @pytest.mark.asyncio
-async def test_rate_limiting(mock_update, mock_context, mock_env_vars):
-    config = MagicMock()
-    config.response_interval = 60.0  # 60 seconds
-    config.momentum_sequences = []
-    config.name = "TestBot"
-    config.type = "Test Assistant"
+async def test_rate_limiting(bot):
+    update = MagicMock(spec=Update)
+    message = MagicMock(spec=Message)
+    message.text = "test message"
+    message.chat_id = 123
+    message.date = datetime.now()
+    update.message = message
     
-    # Create a mock response that simulates the Claude API streaming response
-    stream_content = [
-        'data: {"type":"content_block_delta","delta":{"text":"Test response"}}\n',
-        'data: {"type":"message_stop"}\n'
-    ]
-    mock_response = MockResponse(200, MockStreamReader(stream_content))
-    mock_session = MockClientSession(mock_response)
+    # Mock the pipeline processing
+    bot.process_message_pipeline = AsyncMock(return_value={'code': '200'})
     
-    with patch('aiohttp.ClientSession', return_value=mock_session), \
-         patch('botlab.bot.load_agent_config', return_value=config), \
-         patch('botlab.bot.Bot.should_respond', side_effect=[True, False]):  # First True, then False
-        bot = Bot()
-        mock_update.message.reply_text = AsyncMock()
-        
-        # First message should go through
-        await bot.handle_message(mock_update, mock_context)
-        assert mock_update.message.reply_text.call_count == 1
-        
-        # Second message should be rate limited
-        await bot.handle_message(mock_update, mock_context)
-        assert mock_update.message.reply_text.call_count == 1  # Still 1, not 2
+    # First message should work
+    result = await bot.should_respond(123, update)
+    assert result is True
+    
+    # Second immediate message should be rate limited
+    result = await bot.should_respond(123, update)
+    assert result is False

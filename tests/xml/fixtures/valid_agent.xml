@@ -50,14 +50,14 @@
     <momentum>
         <sequence id="init" type="initialization" temperature="0.1">
             <message position="0">
-                <role type="system">Test system message</role>
+                <role type="system"/>
                 <content>Initialize test sequence</content>
             </message>
         </sequence>
         <sequence id="recovery" type="recovery" temperature="0.7">
             <message position="0">
-                <role type="user">Test recovery message</role>
-                <content>Recover momentum</content>
+                <role type="user"/>
+                <content>Test recovery message. Recover momentum</content>
             </message>
         </sequence>
     </momentum>

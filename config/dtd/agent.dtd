@@ -10,7 +10,7 @@
 <!ELEMENT name (#PCDATA)>
 <!ELEMENT type (#PCDATA)>
 <!ATTLIST type
-    category (foundation|probabilistic|observer) #REQUIRED>
+    category (foundation|assistant|probabilistic|observer|filter) #REQUIRED>
 <!ELEMENT version (#PCDATA)>
 
 <!ELEMENT timing (response_interval)>
@@ -70,10 +70,10 @@
     type (initialization|recovery) #REQUIRED
     temperature CDATA #REQUIRED>
 
-<!ELEMENT message (role, content?)>
+<!ELEMENT message (role, content)>
 <!ATTLIST message
     position CDATA #REQUIRED>
-<!ELEMENT role (#PCDATA)>
+<!ELEMENT role EMPTY>
 <!ATTLIST role
     type (system|user|assistant) #REQUIRED>
 <!ELEMENT content (#PCDATA)>

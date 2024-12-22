@@ -75,16 +75,20 @@ def parse_momentum_sequence(sequence_element: ET.Element) -> Optional[MomentumSe
         for msg_elem in sequence_element.findall('message'):
             role = msg_elem.find('role')
             content = msg_elem.find('content')
+            
+            if role is None or content is None:
+                logger.error("Message missing required role or content")
+                return None
+                
             position = int(msg_elem.get('position', '0'))
             
-            if role is not None and content is not None:
-                logger.debug(f"Adding message at position {position}: role={role.get('type')}")
-                logger.debug(f"Message content length: {len(content.text or '')}")
-                messages.append(MomentumMessage(
-                    role_type=role.get('type', 'system'),
-                    content=content.text or '',
-                    position=position
-                ))
+            logger.debug(f"Adding message at position {position}: role={role.get('type')}")
+            logger.debug(f"Message content length: {len(content.text or '')}")
+            messages.append(MomentumMessage(
+                role_type=role.get('type', 'system'),
+                content=content.text or '',
+                position=position
+            ))
         
         logger.debug(f"Parsed {len(messages)} messages in sequence")
         logger.debug("Sorting messages by position")

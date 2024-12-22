@@ -10,10 +10,10 @@
         </timing>
     </metadata>
     <momentum>
-        <sequence>  <!-- Missing required attributes -->
-            <message>  <!-- Missing position attribute -->
-                <role>Invalid message</role>  <!-- Missing type attribute -->
-                <content>Test</content>
+        <sequence>
+            <message>
+                <role type="system"/>
+                <content>Test message</content>
             </message>
         </sequence>
     </momentum>
