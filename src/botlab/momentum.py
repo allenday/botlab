@@ -70,4 +70,45 @@ class MomentumManager:
             
         except Exception as e:
             logger.error(f"Failed to recover momentum: {str(e)}")
-            return False 
+            return False
+            
+    async def get_response(self, history_xml: str) -> Optional[str]:
+        """Generate response using conversation history"""
+        logger.debug("Generating response from history")
+        try:
+            # Get initialization sequence for system prompt and momentum
+            init_sequence = self._get_sequence('init')
+            if not init_sequence:
+                logger.error("No initialization sequence found")
+                return None
+            
+            system_msg = ""
+            momentum_messages = []
+            
+            for msg in init_sequence:
+                if msg.role_type == 'system':
+                    system_msg = msg.content
+                else:
+                    momentum_messages.append({
+                        'role': msg.role_type,
+                        'content': msg.content
+                    })
+            
+            # Create message list for LLM
+            messages = momentum_messages + [{
+                'role': 'user',
+                'content': f"""
+                Here is the conversation history in XML format:
+                {history_xml}
+                
+                Based on this history and the latest message, please provide a response.
+                """
+            }]
+            
+            response = await self.llm_service.call_api(system_msg, messages)
+            logger.debug(f"Generated response: {response}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating response: {str(e)}")
+            return None 

@@ -167,3 +167,49 @@ class MessageHandler:
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}")
             return None
+
+    async def handle_message(self, message) -> Optional[str]:
+        """Handle incoming message and return response"""
+        logger.debug(f"Handling message in thread {message.message_thread_id}")
+        
+        try:
+            # Add message to history with required arguments
+            self.history.add_message(
+                chat_id=message.chat_id,
+                role='user',
+                content=message.text,
+                agent=message.from_user.username,
+                channel=message.message_thread_id,
+                message_id=message.message_id,
+                reply_to_channel=message.reply_to_message.message_thread_id if message.reply_to_message else None,
+                reply_to_message=message.reply_to_message.message_id if message.reply_to_message else None
+            )
+            
+            # Get conversation history for this channel
+            history_xml = self.history.get_history_xml(
+                chat_id=message.chat_id,
+                channel=message.message_thread_id
+            )
+            
+            # Get response from momentum manager
+            response = await self.momentum.get_response(history_xml)
+            logger.debug(f"Got response: {response}")
+            
+            # Add bot response to history if successful
+            if response:
+                self.history.add_message(
+                    chat_id=message.chat_id,
+                    role='assistant',
+                    content=response,
+                    agent=self.agent_username,
+                    channel=message.message_thread_id,
+                    message_id=message.message_id + 1,
+                    reply_to_channel=message.message_thread_id,
+                    reply_to_message=message.message_id
+                )
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error handling message: {str(e)}")
+            return None

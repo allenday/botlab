@@ -18,10 +18,10 @@ class MessageHistory:
         role: str,
         content: str,
         agent: str,
-        channel: Optional[str] = None,
+        channel: Optional[int] = None,
         message_id: Optional[int] = None,
-        reply_to_channel: Optional[str] = None,
-        reply_to_message_id: Optional[int] = None
+        reply_to_channel: Optional[int] = None,
+        reply_to_message: Optional[int] = None
     ) -> None:
         """Add a message to the conversation history"""
         logger.debug(f"Adding message to chat {chat_id}: role={role}, agent={agent}, id={message_id}")
@@ -36,16 +36,21 @@ class MessageHistory:
             channel=channel,
             message_id=message_id,
             reply_to_channel=reply_to_channel,
-            reply_to_message_id=reply_to_message_id
+            reply_to_message_id=reply_to_message
         )
         
         self.conversations[chat_id].append(message)
         logger.debug(f"Message added to chat {chat_id}, history size: {len(self.conversations[chat_id])}")
         
-    def get_history_xml(self, chat_id: int) -> str:
+    def get_history_xml(self, chat_id: int, channel: Optional[int] = None) -> str:
         """Get conversation history in XML format"""
-        logger.debug(f"Getting XML history for chat {chat_id}")
+        logger.debug(f"Getting XML history for chat {chat_id}, channel {channel}")
         messages = self.conversations.get(chat_id, [])
+        
+        # Filter by channel if specified
+        if channel is not None:
+            messages = [msg for msg in messages if msg.channel == channel]
+        
         logger.debug(f"Found {len(messages)} messages in history")
         
         messages_xml = [msg.to_xml() for msg in messages]

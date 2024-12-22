@@ -62,10 +62,13 @@ class InhibitorFilter(Filter):
                 xml_content = analysis[xml_start:xml_end]
                 message = ET.fromstring(xml_content)
                 
-                logger.info(f"Inhibitor decision: code={message.get('code', '500')}")
+                code = message.get('code', '500')
+                reason = message.text if message.text else "No reason provided"
+                
+                logger.info(f"Inhibitor decision: code={code}, reason={reason}")
                 return {
-                    'code': message.get('code', '500'),
-                    'reason': message.text if message.text else "No reason provided"
+                    'code': code,
+                    'reason': reason
                 }
                 
             except ET.ParseError as e:
