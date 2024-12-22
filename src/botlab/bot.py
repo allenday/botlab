@@ -18,7 +18,6 @@ from .momentum import MomentumManager
 from .history import MessageHistory
 from .handlers import MessageHandler
 from .timing import ResponseTimer
-import psutil
 
 # Configure logging
 logging.basicConfig(
@@ -59,13 +58,7 @@ class Bot:
         # Initialize components...
         
         logger.info("Bot initialization complete")
-        
-        process = psutil.Process()
-        start_mem = process.memory_info().rss / 1024 / 1024  # MB
-        
-        end_mem = process.memory_info().rss / 1024 / 1024
-        logger.info(f"Bot initialization memory usage: {end_mem - start_mem:.1f}MB")
-        
+                
     def _initialize_pipeline(self) -> List[Agent]:
         """Initialize the agent pipeline"""
         logger.info("Initializing agent pipeline")

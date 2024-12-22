@@ -1,48 +1,132 @@
-<!-- Agent Configuration DTD v1.0 -->
-<!ELEMENT agent (metadata, communication, behavior, constraints, momentum)>
+<!-- Agent Configuration DTD -->
+
+<!-- Root element -->
+<!ELEMENT agent (metadata, objectives, styles, constraints, counterparty_perception, momentum, communication, behavior)>
 <!ATTLIST agent
     dtd_version CDATA #REQUIRED>
 
-<!-- Metadata Section -->
-<!ELEMENT metadata (name, type, version, timing)>
+<!-- Metadata -->
+<!ELEMENT metadata (name, type, version, timing, service, emotional_context?)>
 <!ELEMENT name (#PCDATA)>
 <!ELEMENT type (#PCDATA)>
 <!ATTLIST type
-    category (assistant|observer|filter|probabilistic) #REQUIRED>
+    category (foundation|probabilistic|observer) #REQUIRED>
 <!ELEMENT version (#PCDATA)>
+
 <!ELEMENT timing (response_interval)>
 <!ELEMENT response_interval (#PCDATA)>
 <!ATTLIST response_interval
     unit (seconds|minutes) #REQUIRED>
 
-<!-- Communication Section -->
-<!ELEMENT communication (input, output)>
-<!ELEMENT input (format)>
-<!ELEMENT output (format)>
-<!ELEMENT format (#PCDATA)>
+<!ELEMENT service (provider, model, api_version)>
+<!ELEMENT provider (#PCDATA)>
+<!ELEMENT model (#PCDATA)>
+<!ELEMENT api_version (#PCDATA)>
 
-<!-- Behavior Section -->
-<!ELEMENT behavior (core_function, methodology)>
-<!ELEMENT core_function (#PCDATA)>
-<!ELEMENT methodology (step+)>
-<!ELEMENT step (#PCDATA)>
+<!ELEMENT emotional_context (valence, intensity)>
+<!ELEMENT valence EMPTY>
+<!ATTLIST valence
+    min CDATA #REQUIRED
+    max CDATA #REQUIRED
+    resolution CDATA #REQUIRED>
+<!ELEMENT intensity EMPTY>
+<!ATTLIST intensity
+    min CDATA #REQUIRED
+    max CDATA #REQUIRED
+    resolution CDATA #REQUIRED>
 
-<!-- Constraints Section -->
-<!ELEMENT constraints (excluded_topics)>
-<!ELEMENT excluded_topics (topic+)>
-<!ELEMENT topic (#PCDATA)>
+<!-- Objectives -->
+<!ELEMENT objectives (primary, secondary, metrics)>
+<!ELEMENT primary (#PCDATA)>
+<!ELEMENT secondary (objective+)>
+<!ELEMENT objective (#PCDATA)>
+<!ELEMENT metrics (metric+)>
+<!ELEMENT metric (#PCDATA)>
 
-<!-- Momentum Section -->
+<!-- Styles -->
+<!ELEMENT styles (communication_style, analytical_style)>
+<!ELEMENT communication_style (aspect+)>
+<!ELEMENT analytical_style (aspect+)>
+<!ELEMENT aspect (#PCDATA)>
+
+<!-- Constraints -->
+<!ELEMENT constraints (operational, technical)>
+<!ELEMENT operational (constraint+)>
+<!ELEMENT technical (constraint+)>
+<!ELEMENT constraint (#PCDATA)>
+
+<!-- Counterparty Perception -->
+<!ELEMENT counterparty_perception (assumptions, adaptation)>
+<!ELEMENT assumptions (assumption+)>
+<!ELEMENT assumption (#PCDATA)>
+<!ELEMENT adaptation (strategy+)>
+<!ELEMENT strategy (#PCDATA)>
+
+<!-- Momentum -->
 <!ELEMENT momentum (sequence+)>
 <!ELEMENT sequence (message+)>
 <!ATTLIST sequence
     id (init|recovery) #REQUIRED
     type (initialization|recovery) #REQUIRED
     temperature CDATA #REQUIRED>
-<!ELEMENT message (role, content)>
+
+<!ELEMENT message (role, content?)>
 <!ATTLIST message
     position CDATA #REQUIRED>
 <!ELEMENT role (#PCDATA)>
 <!ATTLIST role
     type (system|user|assistant) #REQUIRED>
-<!ELEMENT content (#PCDATA)> 
+<!ELEMENT content (#PCDATA)>
+
+<!-- Communication -->
+<!ELEMENT communication (input, output)>
+<!ELEMENT input (message_format, analysis_points, history?)>
+<!ELEMENT message_format (schema)>
+<!ELEMENT schema (#PCDATA)>
+<!ELEMENT analysis_points (point+)>
+<!ELEMENT point (#PCDATA)>
+
+<!ELEMENT history (lru_cache?)>
+<!ELEMENT lru_cache (threads, memory_management?)>
+<!ELEMENT threads (context?, thread_metadata?)>
+<!ATTLIST threads
+    max_count CDATA #REQUIRED>
+<!ELEMENT context EMPTY>
+<!ATTLIST context
+    length CDATA #REQUIRED>
+
+<!ELEMENT memory_management (window?, summarization?)>
+<!ELEMENT window (messages, time_span)>
+<!ELEMENT messages (#PCDATA)>
+<!ELEMENT time_span (#PCDATA)>
+<!ELEMENT summarization (trigger, threshold)>
+<!ELEMENT trigger (#PCDATA)>
+<!ATTLIST trigger
+    type (message_count|time_elapsed|context_shift) #REQUIRED>
+<!ELEMENT threshold (#PCDATA)>
+
+<!ELEMENT output (format, style?)>
+<!ELEMENT format (#PCDATA)>
+<!ELEMENT style (tone?, persona?, markers?)>
+<!ELEMENT tone (#PCDATA)>
+<!ELEMENT persona (#PCDATA)>
+<!ELEMENT markers (#PCDATA)>
+
+<!-- Behavior -->
+<!ELEMENT behavior (core_function, methodology)>
+<!ELEMENT core_function (#PCDATA)>
+<!ELEMENT methodology (step+)>
+<!ELEMENT step (#PCDATA)>
+
+<!ELEMENT thread_metadata (thread_emotional_context?)>
+<!ELEMENT thread_emotional_context (thread_valence, thread_intensity)>
+<!ELEMENT thread_valence EMPTY>
+<!ATTLIST thread_valence
+    min CDATA #REQUIRED
+    max CDATA #REQUIRED
+    resolution CDATA #REQUIRED>
+<!ELEMENT thread_intensity EMPTY>
+<!ATTLIST thread_intensity
+    min CDATA #REQUIRED
+    max CDATA #REQUIRED
+    resolution CDATA #REQUIRED>

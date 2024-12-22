@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE agent SYSTEM "../../../config/dtd/agent.dtd">
+<agent dtd_version="1.0">
+    <metadata>
+        <name>TestAgent</name>
+        <type category="foundation">inhibitor</type>
+        <version>1.0</version>
+        <timing>
+            <response_interval unit="seconds">30</response_interval>
+        </timing>
+        <service>
+            <provider>anthropic</provider>
+            <model>claude-3-opus-20240229</model>
+            <api_version>2024-02-15</api_version>
+        </service>
+    </metadata>
+    <objectives>
+        <primary>Filter inappropriate content</primary>
+        <secondary>
+            <objective>Maintain conversation flow</objective>
+        </secondary>
+        <metrics>
+            <metric>Response accuracy</metric>
+        </metrics>
+    </objectives>
+    <styles>
+        <communication_style>
+            <aspect>Direct</aspect>
+        </communication_style>
+        <analytical_style>
+            <aspect>Rule-based</aspect>
+        </analytical_style>
+    </styles>
+    <constraints>
+        <operational>
+            <constraint>Rate limiting</constraint>
+        </operational>
+        <technical>
+            <constraint>API limits</constraint>
+        </technical>
+    </constraints>
+    <counterparty_perception>
+        <assumptions>
+            <assumption>User expects quick responses</assumption>
+        </assumptions>
+        <adaptation>
+            <strategy>Adjust to user context</strategy>
+        </adaptation>
+    </counterparty_perception>
+    <momentum>
+        <sequence id="init" type="initialization" temperature="0.1">
+            <message position="0">
+                <role type="system">Test system message</role>
+                <content>Initialize test sequence</content>
+            </message>
+        </sequence>
+        <sequence id="recovery" type="recovery" temperature="0.7">
+            <message position="0">
+                <role type="user">Test recovery message</role>
+                <content>Recover momentum</content>
+            </message>
+        </sequence>
+    </momentum>
+    <communication>
+        <input>
+            <message_format>
+                <schema>text</schema>
+            </message_format>
+            <analysis_points>
+                <point>Content</point>
+            </analysis_points>
+            <history>
+                <lru_cache>
+                    <threads max_count="100">
+                        <context length="10"/>
+                    </threads>
+                </lru_cache>
+            </history>
+        </input>
+        <output>
+            <format>text</format>
+            <style>
+                <tone>Professional</tone>
+                <persona>Assistant</persona>
+            </style>
+        </output>
+    </communication>
+    <behavior>
+        <core_function>Content filtering</core_function>
+        <methodology>
+            <step>Analyze input</step>
+            <step>Apply rules</step>
+            <step>Generate response</step>
+        </methodology>
+    </behavior>
+</agent> 

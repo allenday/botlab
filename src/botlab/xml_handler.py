@@ -35,11 +35,29 @@ def validate_xml_dtd(xml_path: str) -> bool:
     """Validate XML against its DTD."""
     try:
         logger.info(f"Validating XML: {xml_path}")
-        parser = etree.XMLParser(load_dtd=True)
-        etree.parse(xml_path, parser)
-        return True
+        
+        # Create a validating parser
+        parser = etree.XMLParser(
+            dtd_validation=True,
+            load_dtd=True,
+            no_network=False,  # Allow loading external DTDs
+            resolve_entities=True,
+            attribute_defaults=True
+        )
+        
+        # Parse and validate
+        try:
+            etree.parse(xml_path, parser)
+            return True
+        except etree.DocumentInvalid as e:
+            logger.error(f"DTD validation failed: {str(e)}")
+            return False
+        except etree.XMLSyntaxError as e:
+            logger.error(f"XML syntax error: {str(e)}")
+            return False
+            
     except Exception as e:
-        logger.error(f"XML validation failed: {str(e)}")
+        logger.error(f"Unexpected error during XML validation: {str(e)}")
         return False
 
 def parse_momentum_sequence(sequence_element: ET.Element) -> Optional[MomentumSequence]:
