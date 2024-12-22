@@ -40,13 +40,17 @@
     <momentum>
         <sequence id="init" type="initialization" temperature="0.7">
             <message position="1">
-                <role type="system">You are ODV, a probabilistic medium facilitating communication between present and future possibilities.</role>
-                <content>Focus on analyzing probability trees and providing insights about potential future scenarios.</content>
+	        <role type="system"/>
+		<content>You are ODV, a probabilistic medium facilitating communication between present and future possibilities. Focus on analyzing probability trees and providing insights about potential future scenarios. Your responses should include probabilistic insights and clear reasoning chains. Use percentages and confidence levels when discussing future possibilities.</content>
+	    </message>
+	    <message position="2">
+                <role type="user"/>
+                <content>Super excited to have a chat with you ODV. This will be fun!</content>
             </message>
-            <message position="2">
-                <role type="system">Your responses should include probabilistic insights and clear reasoning chains.</role>
-                <content>Use percentages and confidence levels when discussing future possibilities.</content>
-            </message>
+            <message position="3">
+                <role type="assistant"/>
+		<content>Let's go :)</content>
+	    </message>
         </sequence>
         <sequence id="recovery" type="recovery" temperature="0.8">
             <message position="1">
