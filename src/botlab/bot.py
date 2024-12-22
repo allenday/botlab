@@ -3,13 +3,14 @@ import logging
 import time
 import json
 import aiohttp
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple, Set
 from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from dotenv import load_dotenv
 from .xml_handler import load_agent_config, AgentConfig, MomentumMessage
 from pathlib import Path
+from .agents.inhibitor import InhibitorFilter
 
 # Configure logging
 logging.basicConfig(
@@ -46,6 +47,32 @@ class Bot:
         self.last_response_time: Dict[int, datetime] = {}
         self.conversation_history: Dict[int, List[Dict]] = {}
         self.start_time = datetime.now()
+        self.initialized_chats: Set[int] = set()  # Track which chats have been initialized
+        
+        # Initialize agent pipeline
+        self.agents = self._initialize_agents()
+        
+    def _initialize_agents(self) -> List[Agent]:
+        """Initialize the agent pipeline"""
+        agents = []
+        
+        # Load inhibitor agent
+        inhibitor_config_path = os.getenv('INHIBITOR_CONFIG_FILE', 'config/agents/inhibitor.xml')
+        inhibitor_config = load_agent_config(str(inhibitor_config_path))
+        if not inhibitor_config:
+            raise ValueError(f"Failed to load inhibitor configuration")
+            
+        # Get speaker prompt for inhibitor
+        init_sequence = self.config.get_momentum_sequence('initialization')
+        speaker_prompt = ""
+        for msg in init_sequence:
+            if msg.role_type == 'system':
+                speaker_prompt = msg.content
+                break
+                
+        agents.append(InhibitorFilter(inhibitor_config, speaker_prompt))
+        
+        return agents
     
     def get_momentum_sequence(self, sequence_type: str) -> List[MomentumMessage]:
         """Get a momentum sequence by type."""
@@ -83,11 +110,30 @@ class Bot:
         
         return f"<conversation>\n{''.join(messages_xml)}\n</conversation>"
     
-    def should_respond(self, chat_id: int, update: Update) -> bool:
-        """Check if the bot should respond based on timing and context."""
+    async def process_message_pipeline(self, message: Dict) -> Optional[Dict]:
+        """Process message through agent pipeline"""
+        current_message = message
+        
+        for agent in self.agents:
+            result = await agent.process_message(current_message)
+            if not result:
+                return None
+                
+            # Check for inhibition codes (4xx, 5xx)
+            code = result.get('code', '500')
+            if code.startswith(('4', '5')):
+                return result
+                
+            # Update message with agent's analysis
+            current_message.update(result)
+            
+        return current_message
+    
+    async def should_respond(self, chat_id: int, update: Update) -> bool:
+        """Check if the bot should respond based on timing, context and inhibition."""
         current_time = datetime.now()
         
-        # Check response interval
+        # Basic checks (existing code)
         last_response = self.last_response_time.get(chat_id)
         if last_response:
             time_since_last = (current_time - last_response).total_seconds()
@@ -95,18 +141,41 @@ class Bot:
                 logger.info(f"Response interval not met: {time_since_last}s < {self.config.response_interval}s")
                 return False
         
-        # Check if message is after bot start time
         message_time = datetime.fromtimestamp(update.message.date.timestamp())
         if message_time < self.start_time:
             logger.info("Message is from before bot start time")
             return False
-            
-        # Check if message is in allowed topic
+        
         if self.allowed_topic:
             message_topic = update.message.message_thread_id
             if not message_topic or str(message_topic) != self.allowed_topic:
                 logger.info(f"Message not in allowed topic: {message_topic} != {self.allowed_topic}")
                 return False
+        
+        # Check if directly addressed
+        if f'@{self.agent_username}' in update.message.text:
+            return True
+        
+        # Run message through pipeline
+        message = {
+            'history_xml': self.format_message_history(chat_id),
+            'chat_id': chat_id,
+            'update': update,
+            'text': update.message.text,
+            'thread_id': update.message.message_thread_id,
+            'timestamp': message_time.isoformat()
+        }
+        
+        result = await self.process_message_pipeline(message)
+        if not result:
+            logger.info("Pipeline processing failed")
+            return False
+            
+        # Check for inhibition codes
+        code = result.get('code', '500')
+        if code.startswith(('4', '5')):
+            logger.info(f"Response inhibited: {result.get('content', 'No reason provided')}")
+            return False
         
         return True
     
@@ -179,12 +248,115 @@ class Bot:
                     logger.error(f"Claude API error: {error_text}")
                     return "Sorry, I couldn't process your request at this time."
     
+    async def initialize_momentum(self, chat_id: int) -> bool:
+        """Initialize momentum for a new chat."""
+        try:
+            # Get initialization sequence
+            init_sequence = next(
+                (seq for seq in self.config.momentum_sequences if seq.id == "init"),
+                None
+            )
+            if not init_sequence:
+                logger.error("No initialization sequence found in config")
+                return False
+            
+            # Convert momentum sequence to Claude API format
+            messages = []
+            for msg in init_sequence.messages:
+                messages.append({
+                    'role': msg.role_type,
+                    'content': msg.content or ''
+                })
+            
+            # Call Claude API with initialization sequence
+            logger.info(f"Initializing momentum for chat {chat_id}")
+            response = await self.call_claude_api(system="", messages=messages)
+            
+            if response:
+                # Record initialization messages in history
+                for msg in init_sequence.messages:
+                    self.add_to_history(
+                        chat_id,
+                        msg.role_type,
+                        msg.content or '',
+                        self.agent_username,
+                        None,
+                        None,
+                        None,
+                        None
+                    )
+                
+                # Mark chat as initialized
+                self.initialized_chats.add(chat_id)
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error initializing momentum: {str(e)}")
+            return False
+    
+    async def recover_momentum(self, chat_id: int) -> bool:
+        """Recover momentum for a chat that has lost context."""
+        try:
+            # Get recovery sequence
+            recovery_sequence = next(
+                (seq for seq in self.config.momentum_sequences if seq.id == "recovery"),
+                None
+            )
+            if not recovery_sequence:
+                logger.error("No recovery sequence found in config")
+                return False
+            
+            # Convert momentum sequence to Claude API format
+            messages = []
+            for msg in recovery_sequence.messages:
+                messages.append({
+                    'role': msg.role_type,
+                    'content': msg.content or ''
+                })
+            
+            # Call Claude API with recovery sequence
+            logger.info(f"Recovering momentum for chat {chat_id}")
+            response = await self.call_claude_api(system="", messages=messages)
+            
+            if response:
+                # Record recovery messages in history
+                for msg in recovery_sequence.messages:
+                    self.add_to_history(
+                        chat_id,
+                        msg.role_type,
+                        msg.content or '',
+                        self.agent_username,
+                        None,
+                        None,
+                        None,
+                        None
+                    )
+                self.add_to_history(
+                    chat_id,
+                    'assistant',
+                    response,
+                    self.agent_username,
+                    None,
+                    None,
+                    None,
+                    None
+                )
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error recovering momentum: {str(e)}")
+            return False
+    
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle incoming messages."""
         if not update.message or not update.message.text:
             return
-       
-        chat_id = update.message.chat_id
+        
+        chat_id = update.message.chat.id
         message_text = update.message.text
         from_user = update.message.from_user.username
         message_channel = update.message.message_thread_id
@@ -196,23 +368,46 @@ class Bot:
             reply_to_message_id = update.message.reply_to_message.message_id
         
         # Check if we should respond
-        if not self.should_respond(chat_id, update):
+        if not await self.should_respond(chat_id, update):
             return
         
         # Add user message to history
         self.add_to_history(
-                chat_id, 
-                'user', 
-                message_text, 
-                from_user, 
-                message_channel, 
-                message_id, 
-                reply_to_channel, 
-                reply_to_message_id)
+            chat_id,
+            'user',
+            message_text,
+            from_user,
+            message_channel,
+            message_id,
+            reply_to_channel,
+            reply_to_message_id
+        )
+        
+        # Initialize momentum if needed
+        if chat_id not in self.initialized_chats:
+            success = await self.initialize_momentum(chat_id)
+            if not success:
+                await update.message.reply_text(
+                    "I apologize, but I encountered an error during initialization. "
+                    "Please try again later."
+                )
+                return
         
         try:
-            # Prepare conversation context
-            history_xml = self.format_message_history(chat_id)
+            # Create message for pipeline
+            message = {
+                'history_xml': self.format_message_history(chat_id),
+                'chat_id': chat_id,
+                'update': update,
+                'text': message_text,
+                'thread_id': message_channel,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Process through pipeline
+            result = await self.process_message_pipeline(message)
+            if not result:
+                raise Exception("Pipeline processing failed")
             
             # Get initialization sequence
             init_sequence = self.get_momentum_sequence('initialization')
@@ -228,10 +423,9 @@ class Bot:
             messages = momentum_messages + [
                 {'role': 'user', 'content': f"""
                 Here is the conversation history in XML format:
-                {history_xml}
+                {result.get('history_xml', '')}
                 
-                Based on this history and the latest message, please provide a helpful response.
-                Remember to follow the guidelines about group chat interaction and context awareness.
+                Based on this history and the latest message, please provide a response.
                 """}
             ]
 
@@ -253,10 +447,16 @@ class Bot:
             
         except Exception as e:
             logger.error(f"Error handling message: {str(e)}")
-            await update.message.reply_text(
-                "I apologize, but I encountered an error while processing your message. "
-                "Please try again later."
-            )
+            # Try to recover momentum
+            if await self.recover_momentum(chat_id):
+                await update.message.reply_text(
+                    "I needed to realign my context. Could you please repeat your message?"
+                )
+            else:
+                await update.message.reply_text(
+                    "I apologize, but I encountered an error while processing your message. "
+                    "Please try again later."
+                )
     
     def run(self):
         """Run the bot."""

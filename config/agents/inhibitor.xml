@@ -3,7 +3,7 @@
 <agent dtd_version="1.0">
     <metadata>
         <name>Inhibitor</name>
-        <type category="observer">Response Gatekeeper</type>
+        <type category="filter">Response Gatekeeper</type>
         <version>1.0</version>
         <timing>
             <response_interval unit="seconds">0</response_interval>

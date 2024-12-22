@@ -8,7 +8,7 @@
 <!ELEMENT name (#PCDATA)>
 <!ELEMENT type (#PCDATA)>
 <!ATTLIST type
-    category (assistant|observer|probabilistic) #REQUIRED>
+    category (assistant|observer|filter|probabilistic) #REQUIRED>
 <!ELEMENT version (#PCDATA)>
 <!ELEMENT timing (response_interval)>
 <!ELEMENT response_interval (#PCDATA)>
