@@ -135,7 +135,7 @@ class Bot:
         )
         await update.message.reply_text(welcome_message)
     
-    async def call_claude_api(self, messages: List[Dict]) -> str:
+    async def call_claude_api(self, system, messages: List[Dict]) -> str:
         """Call Claude API directly using aiohttp."""
         headers = {
             'anthropic-version': self.api_version,
@@ -148,6 +148,7 @@ class Bot:
             'model': self.model,
             'max_tokens': 1000,
             'temperature': 0.7,
+            'system': system,
             'messages': messages,
             'stream': True
         }
@@ -215,13 +216,16 @@ class Bot:
             
             # Get initialization sequence
             init_sequence = self.get_momentum_sequence('initialization')
-            system_messages = [
-                {'role': msg.role_type, 'content': msg.content}
-                for msg in init_sequence
-            ]
+            system_msg = ""
+            momentum_messages = []
+            for msg in init_sequence:
+                if msg.role_type == 'system':
+                    system_msg = msg.content
+                else:
+                    momentum_messages.append({'role':msg.role_type,'content':msg.content})
             
             # Create the message list for Claude
-            messages = system_messages + [
+            messages = momentum_messages + [
                 {'role': 'user', 'content': f"""
                 Here is the conversation history in XML format:
                 {history_xml}
@@ -232,7 +236,7 @@ class Bot:
             ]
 
             # Get response from Claude
-            assistant_message = await self.call_claude_api(messages)
+            assistant_message = await self.call_claude_api(system_msg, messages)
             await update.message.reply_text(assistant_message)
             
             # Update state
