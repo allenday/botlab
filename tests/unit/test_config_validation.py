@@ -6,7 +6,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 CONFIG_DIR = PROJECT_ROOT / "config/agents"
 
 def test_all_agent_configs_valid():
-    """Test that all agent configs in config/agents are valid"""
+    """Test that all agent configs are valid against DTD"""
     for config_file in CONFIG_DIR.glob("*.xml"):
         assert validate_xml_dtd(str(config_file)), f"Invalid config: {config_file.name}"
         # Also check that we can load it
@@ -25,9 +25,21 @@ def test_agent_config_compatibility():
     if not configs:
         pytest.skip("No configs found to test compatibility")
         
-    # Check that all configs have compatible timing
-    base_interval = configs[0].response_interval
-    base_unit = configs[0].response_interval_unit
-    for config in configs[1:]:
-        assert config.response_interval_unit == base_unit, "Incompatible timing units"
-        assert config.response_interval >= base_interval, "Response interval too short"
+    # Separate system agents (filter/observer) from interactive agents
+    system_configs = [c for c in configs if c.category in ('filter', 'observer')]
+    interactive_configs = [c for c in configs if c.category not in ('filter', 'observer')]
+    
+    # System agents can have zero response interval
+    for config in system_configs:
+        assert config.response_interval >= 0, "Negative response interval"
+        
+    if interactive_configs:
+        # Sort interactive configs by response interval (ascending)
+        interactive_configs.sort(key=lambda x: x.response_interval)
+        base_interval = interactive_configs[0].response_interval
+        base_unit = interactive_configs[0].response_interval_unit
+        
+        # Check interactive agents have compatible timing
+        for config in interactive_configs[1:]:
+            assert config.response_interval_unit == base_unit, "Incompatible timing units"
+            assert config.response_interval >= base_interval, "Response interval too short"

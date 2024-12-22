@@ -1,11 +1,11 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch, Mock
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
 from botlab.bot import Bot
 from botlab.xml_handler import load_agent_config
-from datetime import datetime
+from datetime import datetime, timezone
 
 @pytest.fixture
 def mock_env(monkeypatch):
@@ -58,23 +58,22 @@ def test_handle_message(mock_env, mock_telegram, mock_update, mock_context):
     response = bot.handle_message(mock_update, mock_context)
     assert response is not None
 
-def test_rate_limiting(mock_env):
-    """Test rate limiting functionality"""
-    bot = Bot()
-    # Load inhibitor config
+@pytest.mark.asyncio
+async def test_rate_limiting():
+    """Test that rate limiting works"""
+    # Use the actual inhibitor config
     config_path = Path(__file__).parent.parent.parent / "config/agents/inhibitor.xml"
-    config = load_agent_config(str(config_path))
-    assert config is not None
-    bot.add_agent(config)
+    bot = Bot(config_path=str(config_path))
     
-    assert any(agent.config.category == "filter" for agent in bot.agents)
-    
-    # Test rapid messages
-    update = MagicMock(spec=Update)
-    update.message = MagicMock()
+    # Create test update
+    update = Mock()
+    update.message = Mock()
     update.message.chat_id = 123
-    update.message.date = datetime.now()
+    update.message.date = datetime.now(timezone.utc)
+    update.message.text = "test"
     
-    # Record first response and verify subsequent ones are blocked
-    bot.timer.record_response(update.message.chat_id)
-    assert not bot.timer.can_respond(update.message.chat_id, update.message.date)
+    # First message should be allowed
+    assert await bot.should_respond(update.message.chat_id, update)
+    
+    # Second immediate message should be rate limited
+    assert not await bot.should_respond(update.message.chat_id, update)
