@@ -130,23 +130,26 @@ class Bot:
         """Handle /start command"""
         # ... existing start code ...
 
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle incoming messages"""
-        logger.debug(f"Received message: {update.message.text}")
-        
-        # Check if message is meant for this bot
-        if not update.message.text or f"@{self.agent_username}" not in update.message.text:
-            logger.debug("Message not for this bot")
-            return
-        
-        # Check rate limiting
-        if not await self.should_respond(update.message.chat_id, update):
-            logger.debug("Rate limited")
-            return
-        
+    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle incoming message"""
         try:
+            if not await self.should_respond(update.message.chat_id, update):
+                logger.debug("Rate limited or should not respond")
+                return
+
+            # Get full conversation history
+            history_xml = self.history.get_thread_history(
+                chat_id=update.message.chat_id,
+                thread_id=update.message.message_thread_id
+            )
+            logger.debug(f"Retrieved history: {history_xml}")
+
             # Process message through handler
-            response = await self.message_handler.handle_message(update.message)
+            response = await self.message_handler.handle_message(
+                message=update.message,
+                history_xml=history_xml  # Pass full history
+            )
+            
             if response:
                 logger.debug(f"Sending response: {response}")
                 await context.bot.send_message(
@@ -154,6 +157,10 @@ class Bot:
                     message_thread_id=update.message.message_thread_id,
                     text=response
                 )
+                
+                # Record response for rate limiting
+                self.timer.record_response(update.message.chat_id)
+                
         except Exception as e:
             logger.error(f"Error handling message: {str(e)}")
 

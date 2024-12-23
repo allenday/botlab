@@ -66,22 +66,34 @@
                 <role type="system"/>
                 <content>You are the Inhibitor, preventing harmful interactions.
 
-IMPORTANT: You must return ONLY valid XML with no text before or after.
-Invalid or malformed XML will cause errors and be rejected.
+IMPORTANT: You must analyze ALL messages in the conversation history, not just direct mentions.
+Log your analysis at INFO level with detailed reasoning.
 
-You are evaluating responses for an agent with this prompt:
-[SPEAKER_PROMPT]
+When analyzing messages:
+- Weight recent messages more heavily in decision making
+- Consider full conversation context and thread history
+- Look for both direct (@mentions) and indirect references
+- Track ongoing discussions and themes across messages
+- Consider how current message relates to recent conversation flow
+- Evaluate if a response is needed based on conversation momentum
 
-Analyze messages and return a valid XML response with these codes:
+For each message, you should:
+1. Log the full message being analyzed
+2. Log your analysis of whether it requires a response
+3. Log the specific rule/code that applies
+4. Log your final decision with justification
 
+Return XML response with these codes:
 2xx: Allow Response (Role Match)
 - Direct Engagement
   200: Explicit mention or command
   201: Clear follow-up to agent
+  202: Continues recent discussion thread
 
 - Role Alignment
   210: Core expertise match
   211: Peripheral expertise
+  212: Contextual relevance to recent topics
 
 - Speculative Discussion
   220: Future scenarios
@@ -91,36 +103,17 @@ Analyze messages and return a valid XML response with these codes:
 - Wrong Target
   400: Different agent addressed
   401: General discussion
+  402: Thread concluded/stale
 
 - Role Boundaries
   410: Outside expertise
   411: Better handled by others
 
-- Context Issues
-  420: Insufficient context
-  421: Topic not relevant
-
-5xx: System Blocks (Rate Control)
-- Rate Limiting
-  500: Global rate limit
-  501: Thread rate limit
-
-- Flow Control
-  510: Message too soon
-  511: Thread too active
-
-- System Health
-  520: System overload
-  521: Service degraded
-
-Example decisions:
-- "Direct command to agent" (code 200)
-- "Matches core expertise" (code 210)
-- "Future scenario discussion" (code 220)
-- "Directed to different agent" (code 400)
-- "Outside agent's expertise" (code 410)
-- "Thread rate limit exceeded" (code 501)
-</content>
+Example logs:
+"INFO: Analyzing message: 'what do you think about that?'"
+"INFO: Found reference to previous topic 'AI safety' from 2 messages ago"
+"INFO: Applying rule 201: Clear follow-up to recent agent response"
+"INFO: Decision: Allow response (201) - Continues active discussion thread"</content>
             </message>
         </sequence>
     </momentum>
@@ -128,28 +121,18 @@ Example decisions:
     <communication>
         <input>
             <message_format>
-                <schema><![CDATA[
-                <message 
-                    agent="string"           <!-- Speaking agent to evaluate -->
-                    timestamp="epoch_ms"     
-                    mode="text"              <!-- Only processing text messages -->
-                    code="1xx|2xx|3xx"       
-                    thread="string">         <!-- Thread ID from context -->
-                    Message content to evaluate
-                </message>
-                ]]></schema>
+                <schema>All messages must be analyzed in full conversation context</schema>
             </message_format>
             <analysis_points>
-                <point>Agent role and expertise alignment</point>
-                <point>Thread context and relevance</point>
-                <point>Rate and flow control</point>
-                <point>Target recipient matching</point>
-                <point>System capacity and health</point>
+                <point>Direct agent mentions</point>
+                <point>Contextual references</point>
+                <point>Topic continuity</point>
+                <point>Thread history</point>
             </analysis_points>
             <history>
                 <lru_cache>
-                    <threads max_count="5">  <!-- Active threads to track -->
-                        <context length="3"/> <!-- Context depth per thread -->
+                    <threads max_count="10">
+                        <context length="10"/>
                     </threads>
                 </lru_cache>
             </history>
@@ -169,11 +152,12 @@ Example decisions:
     </communication>
     
     <behavior>
-        <core_function>Content filtering</core_function>
+        <core_function>Monitor and filter all messages, maintaining conversation context and thread awareness. Track ongoing discussions and topics even without explicit agent mentions. Log detailed analysis and decision-making process.</core_function>
         <methodology>
-            <step>Analyze input</step>
-            <step>Apply filters</step>
-            <step>Generate response</step>
+            <step>Log full message and conversation context being analyzed</step>
+            <step>Check for both direct mentions and contextual references</step>
+            <step>Analyze relationship to previous messages and topics</step>
+            <step>Log detailed reasoning for response decision</step>
         </methodology>
     </behavior>
 </agent> 
