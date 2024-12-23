@@ -1,8 +1,9 @@
-from typing import Optional, List, Dict
+from typing import List, Optional, Dict
 import logging
-from .message import Message
+import xml.etree.ElementTree as ET
+from datetime import datetime
+from .xml_handler import AgentConfig, Message
 from .services.anthropic import AnthropicService
-from .xml_handler import AgentConfig, MomentumMessage
 
 logger = logging.getLogger(__name__)
 
@@ -12,9 +13,10 @@ class MomentumManager:
     def __init__(self, config: AgentConfig, llm_service: AnthropicService):
         self.config = config
         self.llm_service = llm_service
+        logger.info(f"Initialized MomentumManager with config: {config.name}")
         self.initialized_chats = set()
         
-    def _get_sequence(self, sequence_id: str) -> Optional[List[MomentumMessage]]:
+    def _get_sequence(self, sequence_id: str) -> Optional[List[Message]]:
         """Get a momentum sequence by ID"""
         sequence = next(
             (seq for seq in self.config.momentum_sequences if seq.id == sequence_id),
@@ -87,7 +89,7 @@ class MomentumManager:
             
             for msg in init_sequence:
                 if msg.role_type == 'system':
-                    system_msg = msg.content
+                    system = msg.content
                 else:
                     momentum_messages.append({
                         'role': msg.role_type,

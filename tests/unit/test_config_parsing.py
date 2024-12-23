@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from botlab.xml_handler import parse_momentum_sequence, MomentumMessage, MomentumSequence
+from botlab.xml_handler import parse_momentum_sequence, MomentumSequence, Message
 import xml.etree.ElementTree as ET
 
 def test_parse_momentum_sequence_with_invalid_input():
@@ -34,7 +34,7 @@ def test_parse_momentum_message_with_missing_attributes():
     </message>
     """
     element = ET.fromstring(xml)
-    msg = MomentumMessage(
+    msg = Message(
         role_type="system",
         content="test",
         position=0

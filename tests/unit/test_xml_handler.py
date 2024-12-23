@@ -25,7 +25,7 @@ def sample_xml():
     </metadata>
     <objectives>
         <primary>Test objective</primary>
-        <secondary><objective>Test</objective></secondary>
+        <secondary>Test</secondary>
         <metrics><metric>Test</metric></metrics>
     </objectives>
     <styles>
@@ -33,12 +33,12 @@ def sample_xml():
         <analytical_style><aspect>Test</aspect></analytical_style>
     </styles>
     <constraints>
-        <operational><constraint>Test</constraint></operational>
-        <technical><constraint>Test</constraint></technical>
+        <operational>Test</operational>
+        <technical>Test</technical>
     </constraints>
     <counterparty_perception>
-        <assumptions><assumption>Test</assumption></assumptions>
-        <adaptation><strategy>Test</strategy></adaptation>
+        <assumption>Test</assumption>
+        <adaptation_strategy>Test</adaptation_strategy>
     </counterparty_perception>
     <momentum>
         <sequence id="init" type="initialization" temperature="0.5">

@@ -144,10 +144,28 @@ class Bot:
             )
             logger.debug(f"Retrieved history: {history_xml}")
 
+            # First run message through inhibitor filter
+            message = {
+                'content': update.message.text,
+                'history_xml': history_xml,
+                'chat_id': update.message.chat_id,
+                'thread_id': update.message.message_thread_id
+            }
+
+            # Find inhibitor agent
+            inhibitor = next((agent for agent in self.agents if isinstance(agent, InhibitorFilter)), None)
+            if inhibitor:
+                logger.info("Running message through inhibitor filter")
+                filter_result = await inhibitor._filter_message(message)
+                if not filter_result or filter_result.get('code', '500').startswith(('4', '5')):
+                    logger.info(f"Message blocked by inhibitor: {filter_result.get('reason') if filter_result else 'No response'}")
+                    return
+                message = filter_result
+
             # Process message through handler
             response = await self.message_handler.handle_message(
                 message=update.message,
-                history_xml=history_xml  # Pass full history
+                history_xml=history_xml
             )
             
             if response:

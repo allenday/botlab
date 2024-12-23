@@ -8,7 +8,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 @dataclass
-class MomentumMessage:
+class Message:
     role_type: str
     content: str
     position: int
@@ -18,7 +18,7 @@ class MomentumSequence:
     id: str
     type: str
     temperature: float
-    messages: List[MomentumMessage]
+    messages: List[Message]
 
 @dataclass
 class ServiceConfig:
@@ -34,8 +34,15 @@ class AgentConfig:
     version: str
     response_interval: float
     response_interval_unit: str
-    momentum_sequences: List[MomentumSequence]
     service: ServiceConfig
+    momentum_sequences: List[MomentumSequence]
+
+    def get_momentum_sequence(self, sequence_id: str) -> List[Message]:
+        """Get messages from a specific momentum sequence"""
+        for sequence in self.momentum_sequences:
+            if sequence.id == sequence_id:
+                return sequence.messages
+        return []
 
 def validate_xml_dtd(xml_path: str) -> bool:
     """Validate XML against its DTD."""
@@ -100,7 +107,7 @@ def parse_momentum_sequence(sequence_element: ET.Element) -> Optional[MomentumSe
             
             logger.debug(f"Adding message at position {position}: role={role.get('type')}")
             logger.debug(f"Message content length: {len(content.text or '')}")
-            messages.append(MomentumMessage(
+            messages.append(Message(
                 role_type=role.get('type', 'system'),
                 content=content.text or '',
                 position=position
@@ -119,86 +126,64 @@ def parse_momentum_sequence(sequence_element: ET.Element) -> Optional[MomentumSe
         logger.error(f"Failed sequence element: {ET.tostring(sequence_element)[:200]}")
         return None
 
-def load_agent_config(xml_path: str) -> Optional[AgentConfig]:
-    """Load agent configuration from XML file."""
+def load_agent_config(file_path: str) -> Optional[AgentConfig]:
+    """Load agent configuration from XML file"""
     try:
-        logger.info(f"Loading agent config: {xml_path}")
-        
-        if not validate_xml_dtd(xml_path):
-            logger.error("XML validation failed")
-            return None
-            
-        tree = ET.parse(xml_path)
+        tree = ET.parse(file_path)
         root = tree.getroot()
         
         # Parse metadata
         metadata = root.find('metadata')
-        if metadata is None:
-            logger.error("Missing metadata section")
-            raise ValueError("Missing metadata section")
-            
-        name = metadata.find('name')
+        name = metadata.find('name').text
         type_elem = metadata.find('type')
-        version = metadata.find('version')
-        timing = metadata.find('timing')
-        
-        if None in (name, type_elem, version, timing):
-            logger.error("Missing required metadata elements")
-            raise ValueError("Missing required metadata elements")
+        type_str = type_elem.text
+        category = type_elem.get('category')
+        version = metadata.find('version').text
         
         # Parse timing
-        response_interval = timing.find('response_interval')
-        if response_interval is None:
-            logger.error("Missing response_interval")
-            raise ValueError("Missing response_interval")
-        
-        interval_value = float(response_interval.text or '0')
-        interval_unit = response_interval.get('unit', 'seconds')
-        logger.debug(f"Response interval: {interval_value} {interval_unit}")
+        timing = metadata.find('timing')
+        response_interval = float(timing.find('response_interval').text)
+        response_interval_unit = timing.find('response_interval').get('unit')
         
         # Parse service config
         service_elem = metadata.find('service')
-        if service_elem is None:
-            logger.error("Missing service configuration")
-            raise ValueError("Missing service configuration")
-            
-        provider = service_elem.find('provider')
-        model = service_elem.find('model')
-        api_version = service_elem.find('api_version')
-        
-        if None in (provider, model, api_version):
-            logger.error("Missing required service elements")
-            raise ValueError("Missing required service elements")
-            
-        service_config = ServiceConfig(
-            provider=provider.text or '',
-            model=model.text or '',
-            api_version=api_version.text or ''
+        service = ServiceConfig(
+            provider=service_elem.find('provider').text,
+            model=service_elem.find('model').text,
+            api_version=service_elem.find('api_version').text
         )
         
         # Parse momentum sequences
+        momentum_sequences = []
         momentum = root.find('momentum')
-        sequences = []
         if momentum is not None:
-            logger.debug("Parsing momentum sequences")
-            for seq_elem in momentum.findall('sequence'):
-                sequence = parse_momentum_sequence(seq_elem)
-                if sequence:
-                    sequences.append(sequence)
-            logger.debug(f"Parsed {len(sequences)} momentum sequences")
+            for seq in momentum.findall('sequence'):
+                messages = []
+                for msg in seq.findall('message'):
+                    messages.append(Message(
+                        role_type=msg.find('role').get('type'),
+                        content=msg.find('content').text,
+                        position=int(msg.get('position'))
+                    ))
+                
+                momentum_sequences.append(MomentumSequence(
+                    id=seq.get('id'),
+                    type=seq.get('type'),
+                    temperature=float(seq.get('temperature')),
+                    messages=messages
+                ))
         
-        logger.info(f"Successfully loaded config for {name.text}")
         return AgentConfig(
-            name=name.text or '',
-            type=type_elem.text or '',
-            category=type_elem.get('category', ''),
-            version=version.text or '',
-            response_interval=interval_value,
-            response_interval_unit=interval_unit,
-            momentum_sequences=sequences,
-            service=service_config
+            name=name,
+            type=type_str,
+            category=category,
+            version=version,
+            response_interval=response_interval,
+            response_interval_unit=response_interval_unit,
+            service=service,
+            momentum_sequences=momentum_sequences
         )
         
     except Exception as e:
-        logger.error(f"Failed to load config: {str(e)}")
+        logger.error(f"Failed to load agent config from {file_path}: {str(e)}")
         return None

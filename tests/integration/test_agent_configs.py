@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
-from botlab.xml_handler import load_agent_config
+from botlab.xml_handler import load_agent_config, validate_xml_dtd
 
 CONFIG_DIR = Path(__file__).parent.parent.parent / "config/agents"
 
