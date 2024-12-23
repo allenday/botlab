@@ -103,34 +103,24 @@
             <output_handling>
                 <format>Updated history with thread management decisions</format>
                 <style>
-                    <tone>Technical</tone>
-                    <persona>Context analyzer</persona>
+                    <communication>
+                        <aspect>Technical</aspect>
+                        <aspect>Context analyzer</aspect>
+                    </communication>
+                    <analysis>
+                        <aspect>Thread-aware</aspect>
+                        <aspect>History-focused</aspect>
+                    </analysis>
                 </style>
                 <response_schema><![CDATA[
-                <history>
-                    <threads>
-                        <thread id="thread_id" parent_id="optional" participants="user_list" concurrent_with="other_thread">
-                            <messages>
-                                <message 
-                                    agent="string"
-                                    timestamp="epoch_ms"
-                                    mode="text"
-                                    thread="thread_id"
-                                    current="true">
-                                    Message content
-                                </message>
-                            </messages>
-                            <relations>
-                                <!-- Optional thread relations -->
-                            </relations>
-                            <topic_context>
-                                <current>Current topic</current>
-                                <previous>Previous topic if shifted</previous>
-                                <shift_type>continuation|shift|break</shift_type>
-                            </topic_context>
-                        </thread>
-                    </threads>
-                </history>
+                <message 
+                    timestamp="epoch_ms"
+                    mode="text"
+                    thread="thread_id"
+                    emotion="string"
+                    tech_level="float">
+                    Updated history with thread decisions
+                </message>
                 ]]></response_schema>
             </output_handling>
         </protocol>

@@ -99,19 +99,18 @@
             </input_handling>
             
             <output_handling>
-                <format>Mystical channeling of future entity's messages</format>
+                <format>Observational data validation results</format>
                 <style>
-                    <tone>Esoteric</tone>
-                    <persona>Otherworldly medium</persona>
+                    <communication>
+                        <aspect>Technical</aspect>
+                        <aspect>Analytical</aspect>
+                    </communication>
+                    <analysis>
+                        <aspect>Data-focused</aspect>
+                        <aspect>Validation-oriented</aspect>
+                    </analysis>
                 </style>
-                <response_schema><![CDATA[
-                <message 
-                    timestamp="epoch_ms"
-                    mode="text"
-                    thread="thread_id">
-                    Channeled message from future entity
-                </message>
-                ]]></response_schema>
+                <response_schema><![CDATA[<message timestamp="epoch_ms" mode="text" thread="thread_id" emotion="string" tech_level="float">validation result</message>]]></response_schema>
             </output_handling>
         </protocol>
     </protocols>

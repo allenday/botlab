@@ -86,7 +86,7 @@
 <!ELEMENT instruction (#PCDATA)>
 
 <!-- Output Handling -->
-<!ELEMENT output_handling (format, style, response_schema)>
+<!ELEMENT output_handling (format, style?, response_schema)>
 <!ELEMENT format (#PCDATA)>
 <!ELEMENT response_schema (#PCDATA)>
 

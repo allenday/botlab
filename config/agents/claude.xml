@@ -99,19 +99,18 @@
             </input_handling>
             
             <output_handling>
-                <format>Clear, concise responses with appropriate formatting</format>
+                <format>Natural conversational responses</format>
                 <style>
-                    <tone>Professional yet friendly</tone>
-                    <persona>Helpful assistant</persona>
+                    <communication>
+                        <aspect>Natural</aspect>
+                        <aspect>Conversational</aspect>
+                    </communication>
+                    <analysis>
+                        <aspect>Context-aware</aspect>
+                        <aspect>Adaptive</aspect>
+                    </analysis>
                 </style>
-                <response_schema><![CDATA[
-                <message 
-                    timestamp="epoch_ms"
-                    mode="text"
-                    thread="thread_id">
-                    Clear, formatted response text
-                </message>
-                ]]></response_schema>
+                <response_schema><![CDATA[<message timestamp="epoch_ms" mode="text" thread="thread_id" emotion="string" tech_level="float">conversational response</message>]]></response_schema>
             </output_handling>
         </protocol>
     </protocols>

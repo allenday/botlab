@@ -23,49 +23,98 @@ def sample_xml():
             <api_version>2024-02-15</api_version>
         </service>
     </metadata>
-    <objectives>
-        <primary>Test objective</primary>
-        <secondary>Test</secondary>
-        <metrics><metric>Test</metric></metrics>
-    </objectives>
-    <styles>
-        <communication_style><aspect>Test</aspect></communication_style>
-        <analytical_style><aspect>Test</aspect></analytical_style>
-    </styles>
-    <constraints>
-        <operational>Test</operational>
-        <technical>Test</technical>
-    </constraints>
-    <counterparty_perception>
-        <assumption>Test</assumption>
-        <adaptation_strategy>Test</adaptation_strategy>
-    </counterparty_perception>
+
+    <memory>
+        <window>
+            <messages>50</messages>
+            <time_span>1800</time_span>
+        </window>
+        <summarization>
+            <trigger type="message_count">25</trigger>
+            <threshold>0.7</threshold>
+        </summarization>
+        <history>
+            <lru_cache>
+                <threads max_count="5">
+                    <context length="5"/>
+                </threads>
+            </lru_cache>
+        </history>
+    </memory>
+
+    <protocols>
+        <protocol id="test_base">
+            <agent_definition>
+                <objectives>
+                    <primary>Test objective</primary>
+                    <secondary>Test</secondary>
+                    <metrics>
+                        <metric>Test</metric>
+                    </metrics>
+                </objectives>
+
+                <style>
+                    <communication>
+                        <aspect>Test</aspect>
+                    </communication>
+                    <analysis>
+                        <aspect>Test</aspect>
+                    </analysis>
+                </style>
+
+                <constraints>
+                    <operational>Test</operational>
+                    <technical>Test</technical>
+                </constraints>
+
+                <behavior>
+                    <core_function>Test</core_function>
+                    <methodology>
+                        <step>Test</step>
+                    </methodology>
+                </behavior>
+
+                <counterparty_perception>
+                    <assumption>Test</assumption>
+                    <adaptation_strategy>Test</adaptation_strategy>
+                </counterparty_perception>
+            </agent_definition>
+            
+            <input_handling>
+                <message_format>
+                    <schema>Test</schema>
+                </message_format>
+                <analysis_points>
+                    <point>Test</point>
+                </analysis_points>
+                <history_processing>
+                    <instruction>Test</instruction>
+                </history_processing>
+            </input_handling>
+            
+            <output_handling>
+                <format>Test</format>
+                <style>
+                    <communication>
+                        <aspect>Test</aspect>
+                    </communication>
+                    <analysis>
+                        <aspect>Test</aspect>
+                    </analysis>
+                </style>
+                <response_schema>Test</response_schema>
+            </output_handling>
+        </protocol>
+    </protocols>
+
     <momentum>
-        <sequence id="init" type="initialization" temperature="0.5">
+        <sequence id="init" type="initialization" protocol_ref="test_base" temperature="0.5">
             <message position="1">
                 <role type="system"/>
                 <content>Test Content</content>
             </message>
         </sequence>
     </momentum>
-    <communication>
-        <input>
-            <message_format><schema>Test</schema></message_format>
-            <analysis_points><point>Test</point></analysis_points>
-            <history>
-                <lru_cache>
-                    <threads max_count="100">
-                        <context length="10"/>
-                    </threads>
-                </lru_cache>
-            </history>
-        </input>
-        <output><format>Test</format></output>
-    </communication>
-    <behavior>
-        <core_function>Test</core_function>
-        <methodology><step>Test</step></methodology>
-    </behavior>
 </agent>'''
 
 @pytest.fixture
