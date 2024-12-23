@@ -6,61 +6,50 @@ from .message import Message
 logger = logging.getLogger(__name__)
 
 class MessageHistory:
-    """Manages conversation history and XML formatting"""
+    """Manages conversation history"""
     
     def __init__(self):
-        logger.info("Initializing message history")
-        self.conversations: Dict[int, List[Message]] = {}
+        self.messages: Dict[int, Dict[Optional[int], List[Message]]] = {}
+        logger.info("Initialized message history")
         
-    def add_message(
-        self,
-        chat_id: int,
-        role: str,
-        content: str,
-        agent: str,
-        channel: Optional[int] = None,
-        message_id: Optional[int] = None,
-        reply_to_channel: Optional[int] = None,
-        reply_to_message: Optional[int] = None
-    ) -> None:
-        """Add a message to the conversation history"""
-        logger.debug(f"Adding message to chat {chat_id}: role={role}, agent={agent}, id={message_id}")
-        if chat_id not in self.conversations:
-            logger.info(f"Creating new conversation history for chat {chat_id}")
-            self.conversations[chat_id] = []
+    def add_message(self, chat_id: int, content: str, role: str, thread_id: Optional[int] = None, agent: Optional[str] = None) -> None:
+        """Add message to history"""
+        if chat_id not in self.messages:
+            self.messages[chat_id] = {}
             
-        message = Message(
-            role=role,
-            content=content,
-            agent=agent,
-            channel=channel,
-            message_id=message_id,
-            reply_to_channel=reply_to_channel,
-            reply_to_message_id=reply_to_message
+        if thread_id not in self.messages[chat_id]:
+            self.messages[chat_id][thread_id] = []
+            
+        self.messages[chat_id][thread_id].append(
+            Message(content=content, role=role, agent=agent)
         )
+        logger.debug(f"Added message to history for chat {chat_id}, thread {thread_id}")
         
-        self.conversations[chat_id].append(message)
-        logger.debug(f"Message added to chat {chat_id}, history size: {len(self.conversations[chat_id])}")
+    def get_thread_history(self, chat_id: int, thread_id: Optional[int] = None) -> str:
+        """Get conversation history for a thread in XML format"""
+        if chat_id not in self.messages or thread_id not in self.messages[chat_id]:
+            logger.debug(f"No history found for chat {chat_id}, thread {thread_id}")
+            return "<history></history>"
+            
+        messages = self.messages[chat_id][thread_id]
         
-    def get_history_xml(self, chat_id: int, channel: Optional[int] = None) -> str:
-        """Get conversation history in XML format"""
-        logger.debug(f"Getting XML history for chat {chat_id}, channel {channel}")
-        messages = self.conversations.get(chat_id, [])
+        # Convert to XML format
+        xml = ["<history>"]
+        for msg in messages:
+            xml.append(f'  <message role="{msg.role}">')
+            xml.append(f'    <content>{msg.content}</content>')
+            xml.append('  </message>')
+        xml.append("</history>")
         
-        # Filter by channel if specified
-        if channel is not None:
-            messages = [msg for msg in messages if msg.channel == channel]
+        history_xml = "\n".join(xml)
+        logger.debug(f"Retrieved history for chat {chat_id}, thread {thread_id}: {history_xml}")
+        return history_xml
         
-        logger.debug(f"Found {len(messages)} messages in history")
-        
-        messages_xml = [msg.to_xml() for msg in messages]
-        xml = f"<conversation>\n{''.join(messages_xml)}\n</conversation>"
-        logger.debug(f"Generated conversation XML: {xml[:200]}...")
-        return xml
-        
-    def get_messages(self, chat_id: int) -> List[Message]:
-        """Get list of messages for a chat"""
-        logger.debug(f"Retrieving message list for chat {chat_id}")
-        messages = self.conversations.get(chat_id, [])
-        logger.debug(f"Returning {len(messages)} messages")
-        return messages 
+    def clear_history(self, chat_id: int, thread_id: Optional[int] = None) -> None:
+        """Clear history for a chat/thread"""
+        if chat_id in self.messages:
+            if thread_id is None:
+                self.messages[chat_id] = {}
+            elif thread_id in self.messages[chat_id]:
+                self.messages[chat_id][thread_id] = []
+        logger.debug(f"Cleared history for chat {chat_id}, thread {thread_id}")
