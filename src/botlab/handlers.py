@@ -28,39 +28,30 @@ class MessageHandler:
         self.allowed_topic = allowed_topic
         logger.debug(f"Configured with agent: {agent_username}, topic: {allowed_topic}")
         
-    def _extract_message_data(self, update: Update) -> Dict:
-        """Extract relevant data from telegram update"""
+    def _extract_message_data(self, update: Update) -> Message:
+        """Extract message data from telegram update"""
         logger.debug(f"Extracting data from update {update.message.message_id}")
-        data = {
-            'text': update.message.text,
-            'from_user': update.message.from_user.username,
-            'channel': update.message.message_thread_id,
-            'message_id': update.message.message_id,
-            'reply_to_channel': update.message.reply_to_message.message_thread_id if update.message.reply_to_message else None,
-            'reply_to_message_id': update.message.reply_to_message.message_id if update.message.reply_to_message else None
-        }
-        logger.debug(f"Extracted message data: {data}")
-        return data
+        return Message(
+            content=update.message.text,
+            role="user",
+            agent=update.message.from_user.username,
+            chat_id=update.message.chat_id,
+            thread_id=update.message.message_thread_id,
+            message_id=update.message.message_id,
+            reply_to_thread_id=update.message.reply_to_message.message_thread_id if update.message.reply_to_message else None,
+            reply_to_message_id=update.message.reply_to_message.message_id if update.message.reply_to_message else None
+        )
         
     async def process_message(self, update: Update, pipeline: list) -> Optional[str]:
         """Process message and generate response"""
         try:
             chat_id = update.message.chat_id
             logger.info(f"Processing message for chat {chat_id}")
-            msg_data = self._extract_message_data(update)
+            msg = self._extract_message_data(update)
             
             # Add user message to history
             logger.debug("Adding user message to history")
-            self.history.add_message(
-                chat_id,
-                'user',
-                msg_data['text'],
-                msg_data['from_user'],
-                msg_data['channel'],
-                msg_data['message_id'],
-                msg_data['reply_to_channel'],
-                msg_data['reply_to_message_id']
-            )
+            self.history.add_message(msg)
             
             # Initialize momentum if needed
             if chat_id not in self.momentum.initialized_chats:
@@ -72,11 +63,11 @@ class MessageHandler:
             # Create pipeline message
             logger.debug("Creating pipeline message")
             message = {
-                'history_xml': self.history.get_history_xml(chat_id),
+                'history_xml': self.history.get_thread_history(chat_id, msg.thread_id),
                 'chat_id': chat_id,
                 'update': update,
-                'text': msg_data['text'],
-                'thread_id': msg_data['channel'],
+                'text': msg.content,
+                'thread_id': msg.thread_id,
                 'timestamp': datetime.now().isoformat()
             }
             
@@ -96,16 +87,16 @@ class MessageHandler:
                 
             # Add response to history
             logger.debug("Adding bot response to history")
-            self.history.add_message(
-                chat_id,
-                'assistant',
-                response,
-                self.agent_username,
-                msg_data['channel'],
-                msg_data['message_id'],
-                msg_data['channel'],
-                msg_data['message_id']
-            )
+            self.history.add_message(Message(
+                content=response,
+                role="assistant",
+                agent=self.agent_username,
+                chat_id=chat_id,
+                thread_id=msg.thread_id,
+                message_id=None,  # Will be set when sent
+                reply_to_thread_id=msg.thread_id,
+                reply_to_message_id=msg.message_id
+            ))
             
             logger.info(f"Successfully processed message for chat {chat_id}")
             return response
@@ -137,32 +128,18 @@ class MessageHandler:
     async def _generate_response(self, pipeline_result: Dict) -> Optional[str]:
         """Generate response using LLM"""
         try:
-            # Get initialization sequence for system prompt and momentum
-            init_sequence = self.momentum.config.get_momentum_sequence('initialization')
-            system_msg = ""
-            momentum_messages = []
-            
-            for msg in init_sequence:
-                if msg.role_type == 'system':
-                    system_msg = msg.content
-                else:
-                    momentum_messages.append({
-                        'role': msg.role_type,
-                        'content': msg.content
-                    })
-            
-            # Create message list for LLM
-            messages = momentum_messages + [{
-                'role': 'user',
-                'content': f"""
-                Here is the conversation history in XML format:
-                {pipeline_result.get('history_xml', '')}
-                
-                Based on this history and the latest message, please provide a response.
-                """
-            }]
-            
-            return await self.llm_service.call_api(system_msg, messages)
+            return await self.llm_service.call_api(
+                system_msg="",  # System message handled by momentum
+                messages=[{
+                    'role': 'user',
+                    'content': f"""
+                    Here is the conversation history in XML format:
+                    {pipeline_result.get('history_xml', '')}
+                    
+                    Based on this history and the latest message, please provide a response.
+                    """
+                }]
+            )
             
         except Exception as e:
             logger.error(f"Error generating response: {str(e)}")
@@ -175,7 +152,7 @@ class MessageHandler:
             if history_xml is None:
                 history_xml = self.history.get_thread_history(
                     chat_id=message.chat_id,
-                    thread_id=message.message_thread_id
+                    thread_id=message.thread_id
                 )
             
             logger.info(f"Processing message with history context")
@@ -186,12 +163,16 @@ class MessageHandler:
             
             if response:
                 # Add response to history
-                self.history.add_message(
-                    chat_id=message.chat_id,
-                    thread_id=message.message_thread_id,
+                self.history.add_message(Message(
                     content=response,
-                    role="assistant"
-                )
+                    role="assistant",
+                    agent=self.agent_username,
+                    chat_id=message.chat_id,
+                    thread_id=message.thread_id,
+                    message_id=None,
+                    reply_to_thread_id=message.thread_id,
+                    reply_to_message_id=message.message_id
+                ))
                 
             return response
             

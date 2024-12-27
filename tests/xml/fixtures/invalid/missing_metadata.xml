@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE agent SYSTEM "../../../../config/dtd/agent.dtd">
+<agent dtd_version="1.0">
+    <protocols>
+        <protocol id="test">
+            <agent_definition>
+                <objectives>
+                    <primary>Test objective</primary>
+                    <secondary>Test secondary</secondary>
+                </objectives>
+                <style>
+                    <communication>Test communication</communication>
+                    <analysis>Test analysis</analysis>
+                </style>
+            </agent_definition>
+        </protocol>
+    </protocols>
+    <momentum>
+        <sequence id="init" type="initialization" protocol_ref="test" temperature="0.7">
+            <message position="1">
+                <role type="system"/>
+                <content>Test content</content>
+            </message>
+        </sequence>
+    </momentum>
+</agent>

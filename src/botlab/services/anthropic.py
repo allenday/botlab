@@ -2,7 +2,7 @@ from typing import Dict, List, Optional
 import logging
 import aiohttp
 import json
-import time
+from ..message import Message
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +18,8 @@ class AnthropicService:
         
     async def call_api(
         self, 
-        system: str, 
-        messages: List[Dict], 
+        system_msg: str, 
+        messages: List[Message], 
         temperature: float = 0.7,
         max_tokens: int = 1000
     ) -> Optional[str]:
@@ -34,12 +34,21 @@ class AnthropicService:
                 'content-type': 'application/json'
             }
             
+            # Convert Message objects to Anthropic format
+            anthropic_messages = [
+                {
+                    'role': msg.role,
+                    'content': msg.content
+                }
+                for msg in messages
+            ]
+            
             payload = {
                 'model': self.model,
                 'max_tokens': max_tokens,
                 'temperature': temperature,
-                'system': system,
-                'messages': messages,
+                'system': system_msg,
+                'messages': anthropic_messages,
                 'stream': True
             }
             

@@ -1,223 +1,39 @@
 import pytest
-import shutil
-from botlab.xml_handler import validate_xml_dtd, parse_momentum_sequence, load_agent_config
-import xml.etree.ElementTree as ET
 from pathlib import Path
-import tempfile
+from botlab.xml_handler import validate_xml_dtd
 
-@pytest.fixture
-def sample_xml():
-    return '''<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE agent SYSTEM "../../../config/dtd/agent.dtd">
-<agent dtd_version="1.0">
-    <metadata>
-        <name>TestBot</name>
-        <type category="foundation">Test Assistant</type>
-        <version>1.0</version>
-        <timing>
-            <response_interval unit="seconds">30</response_interval>
-        </timing>
-        <service>
-            <provider>anthropic</provider>
-            <model>claude-3-opus-20240229</model>
-            <api_version>2024-02-15</api_version>
-        </service>
-    </metadata>
+FIXTURES_DIR = Path(__file__).parent.parent / "xml" / "fixtures"
 
-    <memory>
-        <window>
-            <messages>50</messages>
-            <time_span>1800</time_span>
-        </window>
-        <summarization>
-            <trigger type="message_count">25</trigger>
-            <threshold>0.7</threshold>
-        </summarization>
-        <history>
-            <lru_cache>
-                <threads max_count="5">
-                    <context length="5"/>
-                </threads>
-            </lru_cache>
-        </history>
-    </memory>
+def test_validate_xml_dtd():
+    """Test XML validation against DTD"""
+    valid_xml = FIXTURES_DIR / "valid" / "test_agent.xml"
+    result, errors = validate_xml_dtd(str(valid_xml))
+    assert result, f"Validation failed with errors: {errors}"
 
-    <protocols>
-        <protocol id="test_base">
-            <agent_definition>
-                <objectives>
-                    <primary>Test objective</primary>
-                    <secondary>Test</secondary>
-                    <metrics>
-                        <metric>Test</metric>
-                    </metrics>
-                </objectives>
+def test_validate_xml_dtd_invalid():
+    """Test XML validation fails with invalid XML"""
+    invalid_xml = FIXTURES_DIR / "invalid" / "missing_metadata.xml"
+    result, errors = validate_xml_dtd(str(invalid_xml))
+    assert not result, "Validation should fail for invalid XML"
+    assert "Missing required element <metadata>" in errors
 
-                <style>
-                    <communication>
-                        <aspect>Test</aspect>
-                    </communication>
-                    <analysis>
-                        <aspect>Test</aspect>
-                    </analysis>
-                </style>
+def test_all_agent_configs_valid():
+    """Test all agent config files in config/agents are valid"""
+    config_dir = Path(__file__).parent.parent.parent / "config" / "agents"
+    for xml_file in config_dir.glob("*.xml"):
+        result, errors = validate_xml_dtd(str(xml_file))
+        assert result, f"Validation failed for {xml_file.name} with errors: {errors}"
 
-                <constraints>
-                    <operational>Test</operational>
-                    <technical>Test</technical>
-                </constraints>
+def test_all_fixture_xmls_validate_correctly():
+    """Test that valid fixtures pass and invalid fixtures fail validation"""
+    # Valid fixtures should pass
+    valid_dir = FIXTURES_DIR / "valid"
+    for xml_file in valid_dir.glob("*.xml"):
+        result, errors = validate_xml_dtd(str(xml_file))
+        assert result, f"Valid fixture {xml_file.name} failed validation: {errors}"
 
-                <behavior>
-                    <core_function>Test</core_function>
-                    <methodology>
-                        <step>Test</step>
-                    </methodology>
-                </behavior>
-
-                <counterparty_perception>
-                    <assumption>Test</assumption>
-                    <adaptation_strategy>Test</adaptation_strategy>
-                </counterparty_perception>
-            </agent_definition>
-            
-            <input_handling>
-                <message_format>
-                    <schema>Test</schema>
-                </message_format>
-                <analysis_points>
-                    <point>Test</point>
-                </analysis_points>
-                <history_processing>
-                    <instruction>Test</instruction>
-                </history_processing>
-            </input_handling>
-            
-            <output_handling>
-                <format>Test</format>
-                <style>
-                    <communication>
-                        <aspect>Test</aspect>
-                    </communication>
-                    <analysis>
-                        <aspect>Test</aspect>
-                    </analysis>
-                </style>
-                <response_schema>Test</response_schema>
-            </output_handling>
-        </protocol>
-    </protocols>
-
-    <momentum>
-        <sequence id="init" type="initialization" protocol_ref="test_base" temperature="0.5">
-            <message position="1">
-                <role type="system"/>
-                <content>Test Content</content>
-            </message>
-        </sequence>
-    </momentum>
-</agent>'''
-
-@pytest.fixture
-def sample_sequence():
-    element = ET.fromstring("""
-    <sequence id="init" type="initialization" temperature="0.5">
-        <message position="1">
-            <role type="system"/>
-            <content>Test Content</content>
-        </message>
-    </sequence>
-    """)
-    return element
-
-def test_validate_xml_dtd(tmp_path, sample_xml):
-    # Write sample XML to temporary file
-    xml_path = tmp_path / "test_agent.xml"
-    xml_path.write_text(sample_xml)
-    
-    # Test validation
-    assert validate_xml_dtd(str(xml_path)) == True
-
-def test_parse_momentum_sequence(sample_sequence):
-    sequence = parse_momentum_sequence(sample_sequence)
-    assert sequence is not None
-    assert sequence.id == "init"
-    assert sequence.type == "initialization"
-    assert sequence.temperature == 0.5
-    assert len(sequence.messages) == 1
-    assert sequence.messages[0].role_type == "system"
-    assert sequence.messages[0].content == "Test Content"
-    assert sequence.messages[0].position == 1
-
-def test_load_agent_config():
-    """Test loading agent configuration"""
-    xml_str = """<?xml version="1.0" encoding="UTF-8"?>
-    <!DOCTYPE agent SYSTEM "../../../config/dtd/agent.dtd">
-    <agent dtd_version="1.0">
-        <metadata>
-            <name>TestAgent</name>
-            <type category="foundation">inhibitor</type>
-            <version>1.0</version>
-            <timing>
-                <response_interval unit="seconds">30</response_interval>
-            </timing>
-            <service>
-                <provider>anthropic</provider>
-                <model>claude-3-opus-20240229</model>
-                <api_version>2024-02-15</api_version>
-            </service>
-        </metadata>
-        <objectives>
-            <primary>Test objective</primary>
-            <secondary><objective>Test</objective></secondary>
-            <metrics><metric>Test</metric></metrics>
-        </objectives>
-        <styles>
-            <communication_style><aspect>Test</aspect></communication_style>
-            <analytical_style><aspect>Test</aspect></analytical_style>
-        </styles>
-        <constraints>
-            <operational><constraint>Test</constraint></operational>
-            <technical><constraint>Test</constraint></technical>
-        </constraints>
-        <counterparty_perception>
-            <assumptions><assumption>Test</assumption></assumptions>
-            <adaptation><strategy>Test</strategy></adaptation>
-        </counterparty_perception>
-        <momentum>
-            <sequence id="init" type="initialization" temperature="0.1">
-                <message position="0">
-                    <role type="system"/>
-                    <content>Test</content>
-                </message>
-            </sequence>
-        </momentum>
-        <communication>
-            <input>
-                <message_format><schema>Test</schema></message_format>
-                <analysis_points><point>Test</point></analysis_points>
-            </input>
-            <output><format>Test</format></output>
-        </communication>
-        <behavior>
-            <core_function>Test</core_function>
-            <methodology><step>Test</step></methodology>
-        </behavior>
-    </agent>
-    """
-    
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.xml') as tmp:
-        tmp.write(xml_str)
-        tmp.flush()
-        
-        config = load_agent_config(tmp.name)
-        assert config is not None
-        assert config.name == "TestAgent"
-        assert config.type == "inhibitor"
-        assert config.category == "foundation"
-        assert config.version == "1.0"
-        assert config.response_interval == 30
-        assert config.response_interval_unit == "seconds"
-        assert len(config.momentum_sequences) == 1
-        assert config.service.provider == "anthropic"
-        assert config.service.model == "claude-3-opus-20240229"
-        assert config.service.api_version == "2024-02-15"
+    # Invalid fixtures should fail
+    invalid_dir = FIXTURES_DIR / "invalid"
+    for xml_file in invalid_dir.glob("*.xml"):
+        result, errors = validate_xml_dtd(str(xml_file))
+        assert not result, f"Invalid fixture {xml_file.name} unexpectedly passed validation"

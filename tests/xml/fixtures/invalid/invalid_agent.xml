@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE agent SYSTEM "../../../config/dtd/agent.dtd">
+<agent dtd_version="1.0">
+    <metadata>
+        <!-- Missing name element -->
+        <type>inhibitor</type>  <!-- Missing category attribute -->
+        <version>1.0</version>
+        <timing>
+            <response_interval>30</response_interval>  <!-- Missing unit attribute -->
+        </timing>
+    </metadata>
+    <momentum>
+        <sequence>
+            <message>
+                <role type="system"/>
+                <content>Test message</content>
+            </message>
+        </sequence>
+    </momentum>
+</agent> 

@@ -1,199 +1,158 @@
 import os
 import logging
-from typing import Optional, List, Dict
-from datetime import datetime
-from dotenv import load_dotenv
+from typing import Optional, Dict
 from telegram import Update
 from telegram.ext import ContextTypes
-from .xml_handler import load_agent_config, AgentConfig
-from .agents.inhibitor import InhibitorFilter
+from .xml_handler import load_agent_config
 from .services.telegram import TelegramService
 from .services.anthropic import AnthropicService
 from .momentum import MomentumManager
 from .history import MessageHistory
 from .handlers import MessageHandler
 from .timing import ResponseTimer
-from pathlib import Path
-
-# Load environment variables first
-load_dotenv()
-
-# Set up logging based on environment variable
-log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(
-    level=getattr(logging, log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+from .filters import FilterChain, FilterSet, MentionFilter, TopicFilter, RateLimitFilter
+from .agents.inhibitor import InhibitorFilter
 
 logger = logging.getLogger(__name__)
 
 class Bot:
-    def __init__(self, config_path: str = None):
-        logger.info("Initializing bot")
-        # Load environment variables
-        self.agent_username = os.getenv('AGENT_USERNAME')
-        self.telegram_token = os.getenv('TELEGRAM_TOKEN')
-        self.allowed_topic = os.getenv('ALLOWED_TOPIC_NAME')
-        self.claude_api_key = os.getenv('ANTHROPIC_API_KEY')
+    def __init__(self, config_path: str, username: str = None, allowed_topic: str = None):
+        """Initialize bot with configuration"""
+        self.config = load_agent_config(config_path)
         
-        # Initialize components
-        self.agents = []
-        self.timer = None  # Will be set when inhibitor agent is added
-        self.history = MessageHistory()
+        # Use provided values or fall back to environment variables
+        self.username = username or os.getenv('BOT_USERNAME')
+        self.allowed_topic = allowed_topic or os.getenv('BOT_ALLOWED_TOPIC')
+        
+        # Initialize filter chain
+        self.filter_chain = FilterChain()
+        
+        # Add access filters (mention OR topic) only if both are specified
+        access_filters = []
+        if self.username:
+            access_filters.append(MentionFilter(self.username))
+        if self.allowed_topic:
+            access_filters.append(TopicFilter(self.allowed_topic))
+        if access_filters:
+            self.filter_chain.add_filter_set(FilterSet(access_filters))
         
         # Initialize services
-        self.llm_service = AnthropicService(
-            api_key=self.claude_api_key,
-            api_version=os.getenv('ANTHROPIC_API_VERSION', '2024-02-15'),
-            model=os.getenv('SPEAKER_MODEL', 'claude-3-opus-20240229')
-        )
+        self.timer = None
+        self.history = None
+        self.telegram = None
+        self.inhibitor = None
         
-        # Load ODV config first for momentum manager
-        odv_config_path = Path(__file__).parent.parent.parent / "config/agents/odv.xml"
-        odv_config = load_agent_config(str(odv_config_path))
-        if not odv_config:
-            logger.error("Failed to load ODV config")
-            raise RuntimeError("Could not load ODV config")
-        
-        # Initialize momentum manager with ODV config
-        self.momentum = MomentumManager(
-            config=odv_config,
-            llm_service=self.llm_service
-        )
-        
-        # Initialize message handler
-        self.message_handler = MessageHandler(
-            history=self.history,
-            momentum=self.momentum,
-            llm_service=self.llm_service,
-            agent_username=self.agent_username,
-            allowed_topic=self.allowed_topic
-        )
-        
-        # Initialize telegram service
-        self.telegram = TelegramService(
-            token=self.telegram_token,
-            message_handler=self.handle_message,
-            start_handler=self.start
-        )
-        
-        # Load inhibitor config if provided
-        if config_path:
-            inhibitor_config = load_agent_config(str(config_path))
-            if inhibitor_config:
-                self.add_agent(inhibitor_config)
-
-    def add_agent(self, config: AgentConfig):
-        """Add an agent to the bot"""
-        logger.info(f"Adding agent: {config.name}")
-        if config.category == "filter":
-            self.agents.append(InhibitorFilter(config))
-            # Update response timer with config values
-            self.timer = ResponseTimer(
-                response_interval=config.response_interval,
-                response_interval_unit=config.response_interval_unit,
-                start_time=datetime.now()
-            )
-        # Add other agent types as needed
-
-    async def process_message_pipeline(self, message: Dict) -> Optional[Dict]:
-        """Process message through agent pipeline"""
-        # ... existing pipeline code ...
-
-    async def should_respond(self, chat_id: int, update: Update) -> bool:
-        """Check if bot should respond"""
-        logger.debug(f"Checking rate limit for chat {chat_id}")
-        
-        if self.timer is None:
-            logger.warning("No response timer configured - loading default inhibitor config")
-            config_path = Path(__file__).parent.parent.parent / "config/agents/inhibitor.xml"
-            config = load_agent_config(str(config_path))
-            if config:
-                self.add_agent(config)
-            else:
-                logger.error("Failed to load inhibitor config")
-                return False
-        
-        # Check if enough time has passed since last response
-        can_respond = self.timer.can_respond(chat_id, update.message.date)
-        
-        if can_respond:
-            logger.debug("Rate limit check passed")
-            # Record this response time
-            self.timer.record_response(chat_id)
-        else:
-            logger.debug(f"Rate limited - must wait {self.timer.get_remaining_time(chat_id)} seconds")
-        
-        return can_respond
-
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /start command"""
-        # ... existing start code ...
-
-    async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle incoming message"""
         try:
-            if not await self.should_respond(update.message.chat_id, update):
-                logger.debug("Rate limited or should not respond")
+            # Set up rate limiting if configured
+            if hasattr(self.config, 'response_interval') and self.config.response_interval:
+                self.timer = ResponseTimer(
+                    response_interval=self.config.response_interval,
+                    response_interval_unit=self.config.response_interval_unit
+                )
+                self.filter_chain.add_filter_set(RateLimitFilter(self.timer))
+        except Exception as e:
+            logger.error(f"Failed to initialize rate limiting: {str(e)}")
+        
+        try:
+            self.history = MessageHistory()
+        except Exception as e:
+            logger.error(f"Failed to initialize message history: {str(e)}")
+            
+        try:
+            self.telegram = TelegramService()
+        except Exception as e:
+            logger.error(f"Failed to initialize telegram service: {str(e)}")
+            
+        try:
+            self.inhibitor = InhibitorFilter(self.config)
+        except Exception as e:
+            logger.error(f"Failed to initialize inhibitor: {str(e)}")
+
+    def _should_respond(self, message) -> bool:
+        """Determine if bot should respond to message"""
+        if message is None or not hasattr(message, 'content'):
+            return False
+        
+        result = self.filter_chain.check(message)
+        if not result.passed:
+            logger.debug(f"Message filtered: {result.reason}")
+        return result.passed
+
+    def handle_message(self, message):
+        """Handle incoming message synchronously"""
+        if message is None:
+            logger.debug("Received None message")
+            return None
+        
+        if not self._should_respond(message):
+            logger.debug("Message filtered out")
+            return None
+        
+        try:
+            if self.inhibitor:
+                return self.inhibitor.process(message)
+            return None
+        except Exception as e:
+            logger.error(f"Error processing message: {str(e)}")
+            return None
+
+    def run(self):
+        """Run the bot"""
+        logger.info("Starting bot")
+        if self.telegram:
+            self.telegram.start()
+        else:
+            logger.warning("Cannot start bot - TelegramService not initialized")
+
+    def stop(self):
+        """Stop the bot"""
+        logger.info("Stopping bot")
+        if self.telegram:
+            self.telegram.stop()
+        else:
+            logger.warning("Cannot stop bot - TelegramService not initialized")
+
+    async def handle_telegram_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle incoming Telegram message asynchronously"""
+        try:
+            if not update.message:
+                logger.debug("Empty message received")
+                return
+                
+            # Check if we should respond
+            if not self._should_respond(update.message):
+                logger.debug("Message filtered out")
                 return
 
-            # Get full conversation history
-            history_xml = self.history.get_thread_history(
-                chat_id=update.message.chat_id,
-                thread_id=update.message.message_thread_id
-            )
-            logger.debug(f"Retrieved history: {history_xml}")
+            # Get conversation history if available
+            history_xml = None
+            if self.history:
+                history_xml = await self.history.get_thread_history(
+                    chat_id=update.message.chat_id,
+                    message_id=update.message.message_id
+                )
 
-            # First run message through inhibitor filter
-            message = {
-                'content': update.message.text,
-                'history_xml': history_xml,
-                'chat_id': update.message.chat_id,
-                'thread_id': update.message.message_thread_id
-            }
+            # Process through inhibitor
+            response = None
+            if self.inhibitor:
+                response = self.inhibitor.process({
+                    'content': update.message.text,
+                    'chat_id': update.message.chat_id,
+                    'thread_id': update.message.message_thread_id,
+                    'history_xml': history_xml
+                })
 
-            # Find inhibitor agent
-            inhibitor = next((agent for agent in self.agents if isinstance(agent, InhibitorFilter)), None)
-            if inhibitor:
-                logger.info("Running message through inhibitor filter")
-                filter_result = await inhibitor._filter_message(message)
-                if not filter_result or filter_result.get('code', '500').startswith(('4', '5')):
-                    logger.info(f"Message blocked by inhibitor: {filter_result.get('reason') if filter_result else 'No response'}")
-                    return
-                message = filter_result
-
-            # Process message through handler
-            response = await self.message_handler.handle_message(
-                message=update.message,
-                history_xml=history_xml
-            )
-            
-            if response:
-                logger.debug(f"Sending response: {response}")
-                await context.bot.send_message(
+            # Send response
+            if response and self.telegram:
+                await self.telegram.send_message(
                     chat_id=update.message.chat_id,
                     message_thread_id=update.message.message_thread_id,
                     text=response
                 )
                 
                 # Record response for rate limiting
-                self.timer.record_response(update.message.chat_id)
-                
+                if self.timer:
+                    self.timer.record_response(update.message.chat_id)
+            
         except Exception as e:
-            logger.error(f"Error handling message: {str(e)}")
-
-    def run(self):
-        """Run the bot"""
-        logger.info("Starting bot")
-        self.telegram.start()
-
-    def stop(self):
-        """Stop the bot"""
-        logger.info("Stopping bot")
-        self.telegram.stop()
-
-if __name__ == '__main__':
-    # Load inhibitor config by default
-    config_path = Path(__file__).parent.parent.parent / "config/agents/inhibitor.xml"
-    bot = Bot(config_path=str(config_path))
-    bot.run() 
+            logger.error(f"Error handling message: {str(e)}") 

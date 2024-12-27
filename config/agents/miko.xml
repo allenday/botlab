@@ -107,7 +107,7 @@
                 </counterparty_perception>
             </agent_definition>
             
-            <input_handling>
+            <input>
                 <message_format>
                     <schema>Messages with emotional and technical context</schema>
                 </message_format>
@@ -122,9 +122,9 @@
                     <instruction>Assess comfort boundaries</instruction>
                     <instruction>Build relationship context</instruction>
                 </history_processing>
-            </input_handling>
+            </input>
             
-            <output_handling>
+            <output>
                 <format>VTuber-style responses with creative formatting</format>
                 <style>
                     <communication>
@@ -137,7 +137,7 @@
                     </analysis>
                 </style>
                 <response_schema><![CDATA[<message timestamp="epoch_ms" mode="text" thread="thread_id" emotion="string" tech_level="float">flirtatious response</message>]]></response_schema>
-            </output_handling>
+            </output>
         </protocol>
     </protocols>
 

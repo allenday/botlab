@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE agent SYSTEM "../../../../config/dtd/agent.dtd">
+<agent name="test_filter" type="filter" category="foundation" version="1.0">
+    <invalid_tag>This should fail validation</invalid_tag>
+</agent>

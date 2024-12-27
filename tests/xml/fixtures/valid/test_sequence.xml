@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE agent SYSTEM "../../../../config/dtd/agent.dtd">
+<agent name="test_agent" type="test" category="test" version="1.0">
+    <metadata>
+        <name>Test Agent</name>
+        <type category="test">Test Type</type>
+        <version>1.0</version>
+        <timing>
+            <response_interval unit="seconds">30</response_interval>
+        </timing>
+    </metadata>
+    <protocols>
+        <protocol id="test_proto">
+            <agent_definition>
+                <objectives>
+                    <primary>Test primary objective</primary>
+                    <secondary>Test secondary objective</secondary>
+                </objectives>
+                <style>
+                    <communication>Test communication</communication>
+                    <analysis>Test analysis</analysis>
+                </style>
+            </agent_definition>
+        </protocol>
+    </protocols>
+    <momentum>
+        <sequence id="test_seq" type="initialization" protocol_ref="test_proto" temperature="0.7">
+            <message position="1">
+                <role type="system"/>
+                <content>Test message</content>
+            </message>
+            <message position="2">
+                <role type="assistant"/>
+                <content>Second message</content>
+            </message>
+            <message position="3">
+                <role type="system"/>
+                <content>Third message</content>
+            </message>
+        </sequence>
+    </momentum>
+</agent> 

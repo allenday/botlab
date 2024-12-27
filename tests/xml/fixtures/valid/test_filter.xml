@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE agent SYSTEM "../../../../config/dtd/agent.dtd">
+<agent dtd_version="1.0">
+    <metadata>
+        <name>test_filter</name>
+        <type category="foundation">filter</type>
+        <version>1.0</version>
+        <timing>
+            <response_interval unit="seconds">30</response_interval>
+        </timing>
+    </metadata>
+    <protocols>
+        <protocol id="test">
+            <agent_definition>
+                <objectives>
+                    <primary>Test primary objective</primary>
+                    <secondary>Test secondary objective</secondary>
+                </objectives>
+                <style>
+                    <communication>Test communication</communication>
+                    <analysis>Test analysis</analysis>
+                </style>
+            </agent_definition>
+        </protocol>
+    </protocols>
+    <momentum>
+        <sequence id="init" type="initialization" protocol_ref="test" temperature="0.7">
+            <message position="1">
+                <role type="system"/>
+                <content>Test system message</content>
+            </message>
+        </sequence>
+    </momentum>
+</agent> 

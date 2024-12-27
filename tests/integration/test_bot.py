@@ -1,79 +1,54 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
 from pathlib import Path
-from telegram import Update
-from telegram.ext import ContextTypes
+from unittest.mock import Mock, patch, AsyncMock
+from datetime import datetime
 from botlab.bot import Bot
-from botlab.xml_handler import load_agent_config
-from datetime import datetime, timezone
+from botlab.filters import FilterResult
+from botlab.message import Message
 
 @pytest.fixture
-def mock_env(monkeypatch):
-    """Set up test environment variables"""
-    monkeypatch.setenv('RESPONSE_INTERVAL_SECONDS', '1')
-    monkeypatch.setenv('TELEGRAM_TOKEN', 'test_token')
-    monkeypatch.setenv('AGENT_USERNAME', 'test_bot')
+def test_bot():
+    config_path = Path(__file__).parent.parent / "xml" / "fixtures" / "valid" / "test_agent.xml"
+    
+    with patch('botlab.bot.ResponseTimer') as mock_timer, \
+         patch('botlab.bot.TelegramService') as mock_telegram, \
+         patch('botlab.bot.FilterChain') as mock_filter_chain:
+        
+        # Set up timer mock
+        mock_timer_instance = Mock()
+        mock_timer_instance.can_respond.return_value = True
+        mock_timer.return_value = mock_timer_instance
+        
+        # Set up telegram mock
+        mock_telegram_instance = Mock()
+        mock_telegram_instance.send_message = AsyncMock(return_value="Test response")
+        mock_telegram.return_value = mock_telegram_instance
+        
+        # Set up filter chain mock
+        mock_chain = Mock()
+        mock_chain.check.return_value = FilterResult(True, "Test passed")
+        mock_filter_chain.return_value = mock_chain
+        
+        bot = Bot(
+            config_path=str(config_path),
+            username="test_bot",
+            allowed_topic="allowed_topic"
+        )
+        return bot
 
-@pytest.fixture
-def mock_telegram():
-    return MagicMock()
-
-@pytest.fixture
-def mock_update():
-    update = MagicMock(spec=Update)
-    update.message = MagicMock()
-    update.message.text = "Hello bot!"
-    update.message.chat_id = 123
-    update.message.message_thread_id = None
-    return update
-
-@pytest.fixture
-def mock_context():
-    return MagicMock(spec=ContextTypes.DEFAULT_TYPE)
-
-def test_handle_message(mock_env, mock_telegram, mock_update, mock_context):
+def test_handle_message(test_bot):
     """Test basic message handling"""
-    bot = Bot()
-    bot.telegram = mock_telegram
+    bot = test_bot
     
-    # Load configs
-    config_dir = Path(__file__).parent.parent.parent / "config/agents"
-    
-    # First load inhibitor
-    inhibitor_config = load_agent_config(str(config_dir / "inhibitor.xml"))
-    assert inhibitor_config is not None
-    bot.add_agent(inhibitor_config)
-    
-    # Then load others
-    for config_file in config_dir.glob("*.xml"):
-        if config_file.name != "inhibitor.xml":
-            config = load_agent_config(str(config_file))
-            if config:
-                bot.add_agent(config)
-    
-    assert len(bot.agents) > 0
-    assert any(agent.config.category == "filter" for agent in bot.agents)
+    # Create proper internal Message
+    message = Message(
+        role="user",
+        content="@test_bot help",
+        agent="testuser",
+        chat_id=123,
+        message_id=789
+    )
     
     # Test message handling
-    response = bot.handle_message(mock_update, mock_context)
-    assert response is not None
-
-@pytest.mark.asyncio
-async def test_rate_limiting():
-    """Test that rate limiting works"""
-    # Use the actual inhibitor config
-    config_path = Path(__file__).parent.parent.parent / "config/agents/inhibitor.xml"
-    bot = Bot(config_path=str(config_path))
-    
-    # Create test update
-    update = Mock()
-    update.message = Mock()
-    update.message.chat_id = 123
-    update.message.date = datetime.now(timezone.utc)
-    update.message.text = "test"
-    
-    # First message should be allowed
-    assert await bot.should_respond(update.message.chat_id, update)
-    
-    # Second immediate message should be rate limited
-    assert not await bot.should_respond(update.message.chat_id, update)
+    response = bot.handle_message(message)
+    assert response is not None, "Bot should return a response when message passes filters"

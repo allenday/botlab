@@ -8,7 +8,8 @@ CONFIG_DIR = PROJECT_ROOT / "config/agents"
 def test_all_agent_configs_valid():
     """Test that all agent configs are valid against DTD"""
     for config_file in CONFIG_DIR.glob("*.xml"):
-        assert validate_xml_dtd(str(config_file)), f"Invalid config: {config_file.name}"
+        validation_result, errors = validate_xml_dtd(str(config_file))
+        assert validation_result, f"Invalid config {config_file.name}: {errors}"
         # Also check that we can load it
         config = load_agent_config(str(config_file))
         assert config is not None, f"Failed to load config: {config_file.name}"
