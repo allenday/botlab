@@ -15,7 +15,7 @@ def mock_anthropic_service():
 async def test_protocol_content_included_in_anthropic_messages():
     """Test that protocol content from XML is included in messages sent to Anthropic"""
     # Load test agent config
-    config_path = Path("tests/xml/fixtures/valid/test_protocol_agent.xml")
+    config_path = Path("tests/xml/fixtures/valid/agent_protocol.xml")
     config = load_agent_config(config_path)
     
     # Create mock service
@@ -41,21 +41,17 @@ async def test_protocol_content_included_in_anthropic_messages():
     # Get the keyword arguments from the mock call
     call_kwargs = mock_service.call_api.call_args.kwargs
     
-    # Check system message includes protocol content
-    system_msg = call_kwargs.get('system_msg', '')
-    assert "test_proto" in system_msg  # Protocol ID should be included
-    assert "Test objective" in system_msg  # Protocol objective should be included
-    assert "Test communication style" in system_msg  # Protocol style should be included
-    
-    # Check messages include protocol reference
+    # Check messages include protocol content
     messages = call_kwargs.get('messages', [])
-    assert any('proto:ref="test_proto"' in str(msg.get('content', '')) for msg in messages) 
+    assert any('test_proto' in str(msg.content) for msg in messages)
+    assert any('Test objective' in str(msg.content) for msg in messages)
+    assert any('Test communication style' in str(msg.content) for msg in messages)
 
 @pytest.mark.asyncio
 async def test_sequence_chain():
     """Test full chain of sequence executions"""
     # Load test agent config with multiple sequences
-    config_path = Path("tests/xml/fixtures/valid/test_sequence_chain.xml")
+    config_path = Path("tests/xml/fixtures/valid/sequence_chain.xml")
     config = load_agent_config(config_path)
     
     # Create mock service that tracks sequence progression
@@ -67,9 +63,9 @@ async def test_sequence_chain():
         "conclusion": "To summarize..."
     }
     
-    def get_response(system_msg, messages, temperature):
+    def get_response(messages, temperature):
         # Extract sequence content from messages to determine which sequence we're in
-        history = messages[0]['content']
+        history = messages[0].content
         if "Start initialization" in history and "Hello" not in history:
             return responses["init"]
         elif "Hello" in history and "Analyze" not in history:
@@ -139,10 +135,10 @@ async def test_sequence_chain():
         
         # Verify protocol content was included
         last_call = mock_service.call_api.call_args
-        system_msg = last_call.kwargs['system_msg']
-        assert "Protocol" in system_msg
-        assert "Objectives" in system_msg
-        assert "Style" in system_msg
+        messages = last_call.kwargs['messages']
+        assert any('Protocol' in str(msg.content) for msg in messages)
+        assert any('Test objective' in str(msg.content) for msg in messages)
+        assert any('Test communication style' in str(msg.content) for msg in messages)
         
         # Verify temperature was within bounds
         temperature = last_call.kwargs['temperature']

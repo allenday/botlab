@@ -64,7 +64,7 @@ class MomentumManager:
             logger.error(f"Failed to recover momentum: {str(e)}")
             return False
             
-    async def get_response(self, history_xml: str) -> Optional[str]:
+    async def get_response(self, sequence_or_history) -> Optional[str]:
         """Generate response using conversation history and protocol content"""
         try:
             logger.debug("Generating response from history")
@@ -77,88 +77,62 @@ class MomentumManager:
             active_protocols = set()  # Track which protocols are active
             temperature = 0.7  # Default temperature
             
-            # Determine current sequence based on conversation state
-            if self.config and self.config.momentum_sequences:
-                # If there's only one sequence, use it (for testing)
-                if len(self.config.momentum_sequences) == 1:
-                    current_sequence = self.config.momentum_sequences[0]
-                # Otherwise, select based on conversation state
-                else:
-                    if "Start initialization" in history_xml and "Hello" not in history_xml:
-                        current_sequence = next((seq for seq in self.config.momentum_sequences if seq.id == "init"), None)
-                    elif "Hello" in history_xml and "Analyze" not in history_xml:
-                        current_sequence = next((seq for seq in self.config.momentum_sequences if seq.id == "greeting"), None)
-                    elif "Analyze" in history_xml and "Wrap" not in history_xml:
-                        current_sequence = next((seq for seq in self.config.momentum_sequences if seq.id == "analysis"), None)
-                    elif "Wrap" in history_xml:
-                        current_sequence = next((seq for seq in self.config.momentum_sequences if seq.id == "conclusion"), None)
-                    else:
-                        current_sequence = self.config.momentum_sequences[0]  # Default to first sequence
-                
-                # Get protocol content from sequence's protocol
-                if current_sequence and current_sequence.protocol_ref in self.protocols:
-                    temperature = current_sequence.temperature
+            # Handle both MomentumSequence objects and history XML
+            if hasattr(sequence_or_history, 'protocol_ref'):
+                # Direct sequence object
+                current_sequence = sequence_or_history
+                temperature = max(0.0, min(1.0, current_sequence.temperature))  # Clamp temperature
+                if current_sequence.protocol_ref in self.protocols:
                     protocol = self.protocols[current_sequence.protocol_ref]
-                    active_protocols.add(protocol.id)
-                    protocol_content.append(f"\nProtocol {protocol.id}:")
+                    active_protocols.add(protocol)
+                    protocol_content.extend(protocol.get_content())
+                messages = current_sequence.messages
+            else:
+                # History XML string
+                history_xml = sequence_or_history
+                
+                # Determine current sequence based on conversation state
+                if self.config and self.config.momentum_sequences:
+                    # If there's only one sequence, use it (for testing)
+                    if len(self.config.momentum_sequences) == 1:
+                        current_sequence = self.config.momentum_sequences[0]
+                    # Otherwise, select based on conversation state
+                    else:
+                        if "Start initialization" in history_xml and "Hello" not in history_xml:
+                            current_sequence = next((seq for seq in self.config.momentum_sequences if seq.id == "init"), None)
+                        elif "Hello" in history_xml and "Analyze" not in history_xml:
+                            current_sequence = next((seq for seq in self.config.momentum_sequences if seq.id == "greeting"), None)
+                        elif "Analyze" in history_xml and "Wrap" not in history_xml:
+                            current_sequence = next((seq for seq in self.config.momentum_sequences if seq.id == "analysis"), None)
+                        elif "Wrap" in history_xml:
+                            current_sequence = next((seq for seq in self.config.momentum_sequences if seq.id == "conclusion"), None)
+                        else:
+                            current_sequence = self.config.momentum_sequences[0]  # Default to first sequence
                     
-                    # Add objectives
-                    objectives = protocol.agent_definition.get('objectives', {})
-                    if objectives:
-                        protocol_content.append("Objectives:")
-                        protocol_content.append(f"- Primary: {objectives.get('primary', '')}")
-                        for secondary in objectives.get('secondary', []):
-                            protocol_content.append(f"- Secondary: {secondary}")
-                    
-                    # Add style
-                    style = protocol.agent_definition.get('style', {})
-                    if style:
-                        protocol_content.append("Style:")
-                        protocol_content.append(f"- Communication: {style.get('communication', '')}")
-                        protocol_content.append(f"- Analysis: {style.get('analysis', '')}")
+                    # Get protocol content from sequence's protocol
+                    if current_sequence and current_sequence.protocol_ref in self.protocols:
+                        temperature = max(0.0, min(1.0, current_sequence.temperature))  # Clamp temperature
+                        protocol = self.protocols[current_sequence.protocol_ref]
+                        active_protocols.add(protocol)
+                        protocol_content.extend(protocol.get_content())
+                    messages = current_sequence.messages
+                else:
+                    messages = []
             
-            # If no sequence-specific protocol content, use all available protocols
-            if not protocol_content and self.config and self.config.protocols:
-                for protocol in self.config.protocols:
-                    active_protocols.add(protocol.id)
-                    protocol_content.append(f"\nProtocol {protocol.id}:")
-                    
-                    # Add objectives
-                    objectives = protocol.agent_definition.get('objectives', {})
-                    if objectives:
-                        protocol_content.append("Objectives:")
-                        protocol_content.append(f"- Primary: {objectives.get('primary', '')}")
-                        for secondary in objectives.get('secondary', []):
-                            protocol_content.append(f"- Secondary: {secondary}")
-                    
-                    # Add style
-                    style = protocol.agent_definition.get('style', {})
-                    if style:
-                        protocol_content.append("Style:")
-                        protocol_content.append(f"- Communication: {style.get('communication', '')}")
-                        protocol_content.append(f"- Analysis: {style.get('analysis', '')}")
+            # Add protocol content to first system message
+            if protocol_content and messages:
+                first_msg = messages[0]
+                if first_msg.role == "system":
+                    first_msg.content = "\n".join(protocol_content) + "\n\n" + first_msg.content
             
-            # Ensure temperature is within bounds
-            temperature = max(0.0, min(1.0, temperature))
-            
-            # Build system message with protocol content
-            system_msg = "You are an intelligent assistant following these protocols:\n"
-            system_msg += '\n'.join(protocol_content)
-            system_msg += "\n\nRespond based on the conversation history."
-            
-            # Add protocol references to history XML
-            if active_protocols:
-                protocol_refs = ' '.join([f'proto:ref="{proto_id}"' for proto_id in active_protocols])
-                history_xml = history_xml.replace("<history>", f"<history {protocol_refs}>")
-            
-            return await self.llm_service.call_api(
-                system_msg=system_msg,
-                messages=[{
-                    'role': 'user',
-                    'content': history_xml
-                }],
+            # Call LLM service with protocol content and messages
+            response = await self.llm_service.call_api(
+                messages=messages,
                 temperature=temperature
             )
+            
+            return response
+            
         except Exception as e:
             logger.error(f"Failed to get response: {str(e)}")
             return None 

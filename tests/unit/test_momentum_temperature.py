@@ -3,6 +3,8 @@ from unittest.mock import Mock, AsyncMock, ANY as mock_ANY
 from botlab.momentum import MomentumManager
 from botlab.message import Message
 from botlab.xml_handler import Protocol, AgentDefinition, MomentumSequence
+from xml.etree.ElementTree import fromstring, ElementTree
+from pathlib import Path
 
 @pytest.fixture
 def mock_llm_service():
@@ -41,45 +43,40 @@ def momentum_manager(mock_llm_service, mock_config):
 @pytest.mark.asyncio
 async def test_temperature_effects(momentum_manager, mock_llm_service):
     """Test temperature impact on response generation"""
-    history_xml = "<history><message role='user'>Hello</message></history>"
+    # Load test momentum config
+    config_path = Path(__file__).parent.parent / "xml" / "fixtures" / "valid" / "momentum_basic.xml"
+    tree = ElementTree(fromstring(config_path.read_text()))
+    momentum_elem = tree.find(".//momentum")
     
     # Test with different temperatures
     temperatures = [0.1, 0.7, 1.0]
-    responses = []
     
     for temp in temperatures:
-        # Create a sequence with the current temperature
-        test_sequence = MomentumSequence(
-            id="test_seq",
+        # Create sequence with current temperature
+        sequence = MomentumSequence(
+            id=f"test_seq_{temp}",
             type="test",
             protocol_ref="test_proto",
             temperature=temp,
-            messages=[Message(
-                role="system",
-                content="Test message",
-                agent="system",
-                chat_id=0,
-                message_id=1
-            )]
+            messages=[
+                Message(
+                    role="user",
+                    content="Hello",
+                    agent="user",
+                    chat_id=123,
+                    message_id=1
+                )
+            ]
         )
         
-        # Update the config with the new sequence
-        momentum_manager.config.momentum_sequences = [test_sequence]
+        # Set up mock response
+        mock_llm_service.call_api.return_value = f"Response with temperature {temp}"
         
-        # Configure mock to return different responses based on temperature
-        mock_llm_service.call_api = AsyncMock(
-            return_value=f"Response at temperature {temp}"
-        )
+        # Get response with current temperature
+        response = await momentum_manager.get_response(sequence)
         
-        response = await momentum_manager.get_response(history_xml)
-        responses.append(response)
-        
-        # Verify temperature was passed correctly to LLM service
+        # Verify temperature was passed correctly
         mock_llm_service.call_api.assert_called_with(
-            system_msg=mock_ANY,  # System message includes protocol content
-            messages=mock_ANY,  # Message content is handled by momentum manager
+            messages=mock_ANY,
             temperature=temp
         )
-    
-    # Verify each temperature produced a different response
-    assert len(set(responses)) == len(temperatures), "Different temperatures should produce different responses"

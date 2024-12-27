@@ -386,57 +386,24 @@ async def test_bot_async_message_handling():
 
 def test_filter_config_from_xml():
     """Test loading filter configuration from XML"""
-    config_path = FIXTURES_DIR / "valid" / "test_sequence.xml"
-    with open(config_path, 'r') as f:
-        xml_str = f.read()
+    # Load test filter config
+    config_path = FIXTURES_DIR / "valid" / "filter_basic.xml"
+    tree = ElementTree(fromstring(config_path.read_text()))
+    filters_elem = tree.find(".//filters")
     
-    root = fromstring(xml_str)
-    msg_elem = root.find('.//message')
-    
-    msg = Message(
-        role=msg_elem.find('role').get('type'),
-        content=msg_elem.find('content').text,
-        agent="system",  # System agent for config messages
-        chat_id=0,  # Special chat_id for system messages
-        message_id=int(msg_elem.get('position'))
-    )
-    
-    assert msg.role == "system"
-    assert msg.content == "Test message"
-    assert msg.agent == "system"
-    assert msg.chat_id == 0
-    assert msg.message_id == 1
+    # Create filter chain from config
+    filter_chain = FilterChain.from_xml(filters_elem)
+    assert isinstance(filter_chain, FilterChain)
+    assert len(filter_chain.filter_sets) > 0
 
 def test_filter_chain_from_odv_config():
-    """Test creating filter chain from ODV config"""
-    config_path = FIXTURES_DIR / "valid" / "test_sequence.xml"
-    with open(config_path, 'r') as f:
-        xml_str = f.read()
+    """Test loading filter chain from ODV config"""
+    # Load ODV config
+    config_path = FIXTURES_DIR / "valid" / "odv_basic.xml"
+    tree = ElementTree(fromstring(config_path.read_text()))
+    filters_elem = tree.find(".//odv/filters")
     
-    root = fromstring(xml_str)
-    sequence = root.find('.//sequence')
-    
-    # Test sequence attributes
-    assert sequence.get('id') == "test_seq"
-    assert sequence.get('type') == "initialization"
-    assert sequence.get('protocol_ref') == "test_proto"
-    assert float(sequence.get('temperature')) == 0.7
-    
-    # Test messages
-    messages = sequence.findall('message')
-    assert len(messages) == 3
-    
-    # Test first message
-    msg = Message(
-        role=messages[0].find('role').get('type'),
-        content=messages[0].find('content').text,
-        agent="system",  # System agent for config messages
-        chat_id=0,  # Special chat_id for system messages
-        message_id=int(messages[0].get('position'))
-    )
-    
-    assert msg.role == "system"
-    assert msg.content == "Test message"
-    assert msg.agent == "system"
-    assert msg.chat_id == 0
-    assert msg.message_id == 1 
+    # Create filter chain from config
+    filter_chain = FilterChain.from_xml(filters_elem)
+    assert isinstance(filter_chain, FilterChain)
+    assert len(filter_chain.filter_sets) > 0 

@@ -7,7 +7,7 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 def test_momentum_sequence_parsing():
     """Test parsing momentum sequences"""
-    xml_path = FIXTURES_DIR / "valid" / "single_message_sequence.xml"
+    xml_path = FIXTURES_DIR / "valid" / "sequence_single.xml"
     sequence_elem = ET.parse(str(xml_path)).getroot().find(".//sequence")
     sequence = parse_momentum_sequence(sequence_elem)
     
@@ -21,7 +21,7 @@ def test_momentum_sequence_parsing():
 
 def test_sequence_message_ordering():
     """Test that message order is preserved"""
-    xml_path = FIXTURES_DIR / "valid" / "ordered_messages_sequence.xml"
+    xml_path = FIXTURES_DIR / "valid" / "sequence_ordered.xml"
     sequence_elem = ET.parse(str(xml_path)).getroot().find(".//sequence")
     sequence = parse_momentum_sequence(sequence_elem)
     

@@ -52,12 +52,44 @@ class Protocol:
             return self.agent_definition
         raise KeyError(f"Invalid key: {key}")
 
+    def __hash__(self):
+        """Make Protocol hashable based on its ID"""
+        return hash(self.id)
+
+    def __eq__(self, other):
+        """Compare Protocol objects based on their ID"""
+        if not isinstance(other, Protocol):
+            return NotImplemented
+        return self.id == other.id
+
     def get(self, key: str, default: Any = None) -> Any:
         """Dict-like get method with default value"""
         try:
             return self[key]
         except KeyError:
             return default
+
+    def get_content(self) -> List[str]:
+        """Get protocol content for system message"""
+        content = []
+        content.append(f"\nProtocol {self.id}:")
+        
+        # Add objectives
+        objectives = self.agent_definition.get('objectives', {})
+        if objectives:
+            content.append("Objectives:")
+            content.append(f"- Primary: {objectives.get('primary', '')}")
+            for secondary in objectives.get('secondary', []):
+                content.append(f"- Secondary: {secondary}")
+        
+        # Add style
+        style = self.agent_definition.get('style', {})
+        if style:
+            content.append("Style:")
+            content.append(f"- Communication: {style.get('communication', '')}")
+            content.append(f"- Analysis: {style.get('analysis', '')}")
+        
+        return content
 
 @dataclass
 class AgentDefinition:

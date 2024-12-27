@@ -6,7 +6,7 @@ FIXTURES_DIR = Path(__file__).parent.parent / "xml" / "fixtures"
 
 def test_validate_xml_dtd():
     """Test XML validation against DTD"""
-    valid_xml = FIXTURES_DIR / "valid" / "test_agent.xml"
+    valid_xml = FIXTURES_DIR / "valid" / "agent_basic.xml"
     result, errors = validate_xml_dtd(str(valid_xml))
     assert result, f"Validation failed with errors: {errors}"
 

@@ -247,7 +247,6 @@ async def test_temperature_effects(momentum_manager, mock_llm_service):
     
     # Verify default temperature was used
     mock_llm_service.call_api.assert_called_with(
-        system_msg=mock_ANY,
         messages=mock_ANY,
         temperature=0.7  # Default temperature
     )
@@ -266,7 +265,6 @@ async def test_temperature_effects(momentum_manager, mock_llm_service):
     
     # Verify custom temperature was used
     mock_llm_service.call_api.assert_called_with(
-        system_msg=mock_ANY,
         messages=mock_ANY,
         temperature=0.2  # Custom temperature from sequence
     )
@@ -275,7 +273,6 @@ async def test_temperature_effects(momentum_manager, mock_llm_service):
     test_sequence.temperature = 1.5  # Above max
     await momentum_manager.get_response(history_xml)
     mock_llm_service.call_api.assert_called_with(
-        system_msg=mock_ANY,
         messages=mock_ANY,
         temperature=1.0  # Should be capped at max
     )
@@ -283,7 +280,6 @@ async def test_temperature_effects(momentum_manager, mock_llm_service):
     test_sequence.temperature = -0.5  # Below min
     await momentum_manager.get_response(history_xml)
     mock_llm_service.call_api.assert_called_with(
-        system_msg=mock_ANY,
         messages=mock_ANY,
         temperature=0.0  # Should be capped at min
     )

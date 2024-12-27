@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import logging
 from .timing import ResponseTimer
 import re
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,37 @@ class FilterChain(MessageFilter):
     """A series of filter sets - ALL sets must pass for message to be processed"""
     def __init__(self):
         self.filter_sets: List[Union[FilterSet, MessageFilter]] = []
+    
+    @classmethod
+    def from_xml(cls, xml_elem) -> 'FilterChain':
+        """Create a FilterChain from XML element"""
+        chain = cls()
+        
+        # Add filters from XML
+        if xml_elem is not None:
+            filter_set = FilterSet([])
+            for filter_elem in xml_elem.findall("filter"):
+                filter_type = filter_elem.get("type")
+                if filter_type == "mention":
+                    username = filter_elem.get("username")
+                    filter_set.filters.append(MentionFilter(username))
+                elif filter_type == "topic":
+                    topic = filter_elem.get("topic")
+                    filter_set.filters.append(TopicFilter(topic))
+                elif filter_type == "rate_limit":
+                    interval = float(filter_elem.get("interval", "60"))
+                    # Initialize ResponseTimer with interval in seconds and current time
+                    timer = ResponseTimer(
+                        response_interval=interval,
+                        response_interval_unit="seconds",
+                        start_time=datetime.now()
+                    )
+                    filter_set.filters.append(RateLimitFilter(timer))
+            
+            if filter_set.filters:
+                chain.add_filter_set(filter_set)
+        
+        return chain
     
     def add_filter_set(self, filter_set: Union[FilterSet, MessageFilter]):
         """Add a set of parallel filters"""
